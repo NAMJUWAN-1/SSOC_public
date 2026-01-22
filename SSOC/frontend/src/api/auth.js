@@ -1,7 +1,14 @@
 import api from "./axios"
 
-export const login = (data) =>
-  api.post("/api/auth/login/", data)
+export const startMattermostOAuth = () => {
+  window.location.href =
+    `${import.meta.env.VITE_API_BASE_URL}/api/auth/mm/login`
+}
 
-export const logout = () =>
-  api.post("/api/auth/logout/")
+export const handleOAuthCallback = async (code, state) => {
+  const response = await api.post("/api/auth/mm/callback", {
+    code,
+    state,
+  })
+  return response.data
+}
