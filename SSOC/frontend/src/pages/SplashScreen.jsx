@@ -8,16 +8,25 @@ export default function SplashScreen() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    // 2단계: 연동되는 것처럼 연출 후 프로필 설정으로 이동
     const timer = setTimeout(() => {
-      navigate("/profile/setup")
+      navigate("/oauth/callback", { replace: true })
     }, 2000)
 
     return () => clearTimeout(timer)
   }, [navigate])
 
   return (
-    <div className="w-screen h-screen bg-slate-50 flex flex-col items-center justify-center relative overflow-hidden">
+    <div
+      className="
+        w-screen h-screen
+        flex flex-col items-center justify-center
+        relative overflow-hidden
+        bg-gradient-to-br
+        from-[#4F467F]/5
+        via-white
+        to-[#4F467F]/10
+      "
+    >
       <div className="z-10 flex flex-col items-center">
         <img
           src={symbolLogo}
@@ -32,13 +41,14 @@ export default function SplashScreen() {
         <p className="mt-6 text-slate-400 text-xs sm:text-sm md:text-base tracking-wide animate-pulse">
           Mattermost 계정과 연동 중입니다
         </p>
+      </div>
 
-        {/* 푸터 */}
+      {/* 푸터 */}
       <p className="absolute bottom-8 text-slate-400 text-xs font-medium z-10">
         © 2026 SSOC. All rights reserved.
       </p>
-      </div>
 
+      {/* 기존 애니메이션 그대로 */}
       <style>
         {`
           .symbol-logo,
