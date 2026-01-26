@@ -57,3 +57,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     # 객체를 User object (1) 대신 email (nickname) 표시하기 위한 편의기능 함수
     def __str__(self):
         return f"{self.email} ({self.nickname})"
+    
+    # SimpleJWT 호환성: user.id 접근 시 user_id 반환
+    @property
+    def id(self):
+        return self.user_id

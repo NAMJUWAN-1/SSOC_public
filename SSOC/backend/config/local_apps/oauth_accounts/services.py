@@ -43,8 +43,11 @@ class MattermostUserinfo:
 
 
 def _derive_name_nickname(mm: MattermostUserinfo) -> Tuple[str, str]:
+    # first,last로 나눠져있으면 합쳐서 이름으로
     full = " ".join([p for p in [mm.first_name, mm.last_name] if p]).strip()
+    # 이름설정, 이름이 없으면 email의 앞부분
     name = full or (mm.username or mm.email.split("@")[0])
+    # 닉네임 설정 : 자동설정이지만 추후 사용자가 입력한 값 들어오게 수정
     nickname = (mm.nickname or mm.username or name).strip()
     return name, nickname
 
@@ -132,8 +135,11 @@ def issue_refresh_cookie_and_store_in_db(*, user: User, response: HttpResponse) 
     """
     - 이미 존재하는 issue_token_pair_for_user(user) 사용
     - refresh는 쿠키(HttpOnly)로 세팅
-    - 서버 저장/무효화 운영은 SimpleJWT blacklist(outstanding/blacklist) 기반으로 충족됨. :contentReference[oaicite:1]{index=1}
+    - 서버 저장/무효화 운영은 SimpleJWT blacklist(outstanding/blacklist) 기반으로 충족됨
     """
+    from django.conf import settings
+    
     pair = issue_token_pair_for_user(user)  # {"refresh": "...", "access": "..."}
-    set_refresh_cookie(response, pair["refresh"])
+    max_age = int(settings.SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"].total_seconds())
+    set_refresh_cookie(response, pair["refresh"], max_age_seconds=max_age)
     return pair

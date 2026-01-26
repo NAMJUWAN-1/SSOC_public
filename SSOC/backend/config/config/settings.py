@@ -57,6 +57,9 @@ INSTALLED_APPS = [
     "local_apps.users",
     "local_apps.oauth_accounts",
     "local_apps.tokens",
+    "local_apps.boards",
+    "local_apps.channels",
+    "local_apps.user_info",
 ]
 
 MIDDLEWARE = [
@@ -181,6 +184,9 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": True,
     # 헤더 규칙 고정  무엇: Bearer 타입만 허용
     "AUTH_HEADER_TYPES": ("Bearer",),
+    # User 모델의 PK가 user_id이므로 명시적으로 지정
+    "USER_ID_FIELD": "user_id",
+    "USER_ID_CLAIM": "user_id",
 }
 
 # Refresh 쿠키 정책
@@ -191,3 +197,6 @@ REFRESH_COOKIE_SECURE = False   # True면 HTTPS(배포) 요청에서만 쿠키�
 REFRESH_COOKIE_MAX_AGE = 60 * 60 * 24 * 14  # 쿠키 수명(초 단위)
 
 AUTH_USER_MODEL = "users.User"
+
+# ===== Mattermost REST API 설정 =====
+MATTERMOST_BASE_URL = os.getenv("MM_BASE_URL", "https://meeting.ssafy.com")
