@@ -30,30 +30,66 @@ def sync_user_channels(user: User, mm_token: str, mm_user_id: str) -> None:
         print(f"Failed to fetch MM channels: {e}")
         return
 
+    # 최적화: 1단계 - unique team_id 수집
+    unique_team_ids = set()
+    for ch_data in channels_data:
+        mm_team_id = ch_data.get("team_id")
+        if mm_team_id:
+            unique_team_ids.add(mm_team_id)
+    
+    # 최적화: 2단계 - DB에서 이미 mm_board_id가 채워진 Board 조회
+    existing_boards = Board.objects.filter(
+        mm_team_id__in=unique_team_ids,
+        mm_board_id__isnull=False  # 이미 정보가 있는 것만
+    ).values_list('mm_team_id', flat=True)
+    
+    # 최적화: 3단계 - 아직 정보가 없는 team만 API 호출 (캐싱)
+    from local_apps.oauth_accounts.mm_auth import fetch_team
+    team_info_cache = {}
+    
+    for team_id in unique_team_ids:
+        if team_id not in existing_boards:
+            try:
+                team_info = fetch_team(mm_token, team_id)
+                team_info_cache[team_id] = {
+                    "mm_board_id": team_info.get("name"),
+                    "board_name": team_info.get("display_name")
+                }
+            except Exception as e:
+                print(f"Failed to fetch team {team_id}: {e}")
+                team_info_cache[team_id] = {
+                    "mm_board_id": f"team-{team_id[:8]}",
+                    "board_name": f"Team {team_id[:8]}"
+                }
+
     # DB 트랜잭션 내에서 처리
     with transaction.atomic():
         for ch_data in channels_data:
             mm_channel_id = ch_data.get("id")
             mm_team_id = ch_data.get("team_id")
             channel_name = ch_data.get("display_name", ch_data.get("name"))
-            channel_type = ch_data.get("type", "O") # O:Public, P:Private, D:Direct, G:Group
+            channel_type = ch_data.get("type", "O")
             
-            # Team ID가 없는 경우(Direct Message 등)는 일단 스킵하거나 Default Board 처리
-            # 여기서는 Team ID가 있는 경우만 Board로 매핑
+            # Team ID가 없는 경우 스킵
             if not mm_team_id:
                 continue
 
-            # 1. Board 동기화 (MM Team -> Board)
-            # board_name은 중복될 수 있으므로 unique 처리를 위해 mm_team_id랑 같이 고려해야 함
-            # 현재 모델은 board_name이 unique이므로, 충돌 방지 로직 필요
-            # 우선 간단히 team_id로 조회하고, 없으면 생성 시도
-            
-            board, created = Board.objects.get_or_create(
-                mm_team_id=mm_team_id,
-                defaults={
-                    "board_name": f"Team {mm_team_id[:8]}" # 임시 이름 (실제 팀 이름 API 필요)
-                }
-            )
+            # 1. Board 동기화 (캐시된 정보 또는 DB 기존값 사용)
+            if mm_team_id in team_info_cache:
+                # 새로 가져온 정보로 업데이트
+                board, created = Board.objects.update_or_create(
+                    mm_team_id=mm_team_id,
+                    defaults=team_info_cache[mm_team_id]
+                )
+            else:
+                # 이미 DB에 정보가 있으므로 조회만
+                board, created = Board.objects.get_or_create(
+                    mm_team_id=mm_team_id,
+                    defaults={
+                        "board_name": f"Team {mm_team_id[:8]}",
+                        "mm_board_id": f"team-{mm_team_id[:8]}"
+                    }
+                )
             
             # 2. Channel 동기화
             channel, created = Channel.objects.update_or_create(
@@ -66,7 +102,6 @@ def sync_user_channels(user: User, mm_token: str, mm_user_id: str) -> None:
             )
             
             # 3. UserInfo (매핑) 동기화
-            # 이미 존재하는 매핑이면 건너뜀
             UserInfo.objects.get_or_create(
                 user=user,
                 channel=channel,
