@@ -1,0 +1,328 @@
+import React, { useMemo, useRef, useEffect } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { isSameDay, startOfDay } from "../../utils/date";
+
+const monthNames = [
+  "1월","2월","3월","4월","5월","6월",
+  "7월","8월","9월","10월","11월","12월"
+];
+
+const MAX_VISIBLE_LANES = 2;
+
+function getEventPosition(ev, date) {
+  const s = startOfDay(ev.startAt);
+  const e = startOfDay(ev.endAt || ev.startAt);
+  const t = startOfDay(date);
+
+  if (s.getTime() === e.getTime()) return "single";
+  if (t.getTime() === s.getTime()) return "start";
+  if (t.getTime() === e.getTime()) return "end";
+  return "middle";
+}
+
+function colorClass(category) {
+  if (!category) return "bg-slate-100 text-slate-700";
+  if (category === "시험") return "bg-purple-100 text-purple-800";
+  if (category === "과제") return "bg-red-100 text-red-800";
+  if (category === "특강") return "bg-indigo-100 text-indigo-800";
+  if (category === "취업") return "bg-blue-100 text-blue-800";
+  if (category === "행사") return "bg-emerald-100 text-emerald-800";
+  return "bg-slate-100 text-slate-700";
+}
+
+export default function CalendarMonth({
+  currentDate,
+  setCurrentDate,
+  events,
+  expandedWeek,
+  setExpandedWeek,
+  onOpenEvent,
+}) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const onDown = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) {
+        setExpandedWeek(null);
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [setExpandedWeek]);
+
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+
+  const weeks = useMemo(() => {
+    const first = new Date(year, month, 1);
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const startDow = first.getDay();
+
+    const cells = [];
+    for (let i = 0; i < startDow; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
+    while (cells.length % 7 !== 0) cells.push(null);
+
+    const ws = [];
+    for (let i = 0; i < cells.length; i += 7) ws.push(cells.slice(i, i + 7));
+    return ws;
+  }, [year, month]);
+
+  const weekLanes = useMemo(() => {
+    return weeks.map((week) => {
+      const validDays = week.filter(Boolean);
+      if (validDays.length === 0) return [];
+
+      const weekStart = startOfDay(validDays[0]);
+      const weekEnd = startOfDay(validDays[validDays.length - 1]);
+
+      const weekEvents = events
+        .filter((ev) => {
+          const s = startOfDay(ev.startAt);
+          const e = startOfDay(ev.endAt || ev.startAt);
+          return e >= weekStart && s <= weekEnd;
+        })
+        .sort((a, b) => {
+          const sa = startOfDay(a.startAt).getTime();
+          const sb = startOfDay(b.startAt).getTime();
+          if (sa !== sb) return sa - sb;
+
+          const ea = startOfDay(a.endAt || a.startAt).getTime();
+          const eb = startOfDay(b.endAt || b.startAt).getTime();
+          if (ea !== eb) return ea - eb;
+
+          return String(a.id).localeCompare(String(b.id));
+        });
+
+      const lanes = [];
+      weekEvents.forEach((ev) => {
+        const s = startOfDay(ev.startAt);
+
+        let placed = false;
+        for (let i = 0; i < lanes.length; i++) {
+          const last = lanes[i][lanes[i].length - 1];
+          const lastEnd = startOfDay(last.endAt || last.startAt);
+          if (lastEnd < s) {
+            lanes[i].push(ev);
+            placed = true;
+            break;
+          }
+        }
+        if (!placed) lanes.push([ev]);
+      });
+
+      return lanes;
+    });
+  }, [weeks, events]);
+
+  const prevMonth = () => {
+    setCurrentDate(new Date(year, month - 1, 1));
+    setExpandedWeek(null);
+  };
+
+  const nextMonth = () => {
+    setCurrentDate(new Date(year, month + 1, 1));
+    setExpandedWeek(null);
+  };
+
+  const toggleWeek = (idx) => {
+    setExpandedWeek(expandedWeek === idx ? null : idx);
+  };
+
+  return (
+    <div
+      ref={ref}
+      className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden select-none"
+    >
+      {/* 헤더 */}
+      <div className="flex justify-between items-center px-6 py-5 border-b border-slate-100">
+        <div className="flex items-center gap-4">
+          <h2 className="text-3xl font-black text-slate-900 tracking-tighter">
+            {year}년 {monthNames[month]} 일정
+          </h2>
+          <div className="flex gap-1">
+            <button
+              onClick={prevMonth}
+              className="p-2 rounded-full bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 shadow-sm"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <button
+              onClick={nextMonth}
+              className="p-2 rounded-full bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 shadow-sm"
+            >
+              <ChevronRight size={20} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 요일 헤더 */}
+      <div className="grid grid-cols-7 bg-slate-50 border-b border-slate-100">
+        {["일","월","화","수","목","금","토"].map((d, i) => (
+          <div
+            key={d}
+            className={`p-4 text-center text-xs font-black tracking-[0.2em] ${
+              i === 0
+                ? "text-red-400"
+                : i === 6
+                ? "text-blue-400"
+                : "text-slate-400"
+            }`}
+          >
+            {d}
+          </div>
+        ))}
+      </div>
+
+      {/* 캘린더 바디 */}
+      <div className="flex flex-col relative">
+        {weeks.map((week, wi) => {
+          const isExpanded = expandedWeek === wi;
+          const lanes = weekLanes[wi] || [];
+
+          return (
+            <div
+              key={wi}
+              className={`grid grid-cols-7 border-b border-slate-100 transition-all duration-500 relative ${
+                isExpanded ? "min-h-[18rem]" : "h-32"
+              }`}
+            >
+              {week.map((date, di) => {
+                const today = date && isSameDay(date, new Date());
+
+                // ✅ 여기만 기능 수정
+                const actualCount = lanes.reduce((acc, lane) => {
+                  const hasEvent = lane.some((e) => {
+                    const s = startOfDay(e.startAt);
+                    const end = startOfDay(e.endAt || e.startAt);
+                    const t = startOfDay(date);
+                    return t >= s && t <= end;
+                  });
+                  return acc + (hasEvent ? 1 : 0);
+                }, 0);
+
+                const hiddenCount = Math.max(
+                  0,
+                  actualCount - MAX_VISIBLE_LANES
+                );
+
+                return (
+                  <div
+                    key={di}
+                    onClick={() => date && toggleWeek(wi)}
+                    className={`border-r border-slate-50 last:border-r-0 relative group transition-colors ${
+                      date
+                        ? "hover:bg-blue-50/30 cursor-pointer"
+                        : "bg-slate-50/30"
+                    }`}
+                  >
+                    {date && (
+                      <>
+                        <div
+                          className={`w-6 h-6 flex items-center justify-center text-xs font-black relative top-2 left-2 ${
+                            today ? "text-blue-600" : "text-slate-500"
+                          }`}
+                        >
+                          {date.getDate()}
+                        </div>
+
+                        <div className="mt-8 space-y-1">
+                          {!isExpanded &&
+                            lanes.slice(0, MAX_VISIBLE_LANES).map((lane, li) => {
+                              const ev = lane.find((e) => {
+                                const s = startOfDay(e.startAt);
+                                const end = startOfDay(e.endAt || e.startAt);
+                                const t = startOfDay(date);
+                                return t >= s && t <= end;
+                              });
+
+                              if (!ev)
+                                return <div key={li} className="h-5 mx-2" />;
+
+                              const pos = getEventPosition(ev, date);
+                              let chip =
+                                "h-5 text-[9px] font-black flex items-center px-2 truncate opacity-80";
+
+                              if (pos === "start")
+                                chip += " rounded-l-md ml-2 mr-0";
+                              else if (pos === "end")
+                                chip += " rounded-r-md ml-0 mr-2";
+                              else if (pos === "middle")
+                                chip += " rounded-none mx-0";
+                              else chip += " rounded-md mx-2";
+
+                              return (
+                                <div
+                                  key={li}
+                                  className={`${chip} ${colorClass(
+                                    ev.category
+                                  )}`}
+                                >
+                                  {pos === "start" || pos === "single"
+                                    ? ev.title
+                                    : "\u00A0"}
+                                </div>
+                              );
+                            })}
+
+                          {!isExpanded && hiddenCount > 0 && (
+                            <div className="text-[9px] text-slate-400 font-black pl-2 mt-1">
+                              +{hiddenCount}건 더보기
+                            </div>
+                          )}
+
+                          {isExpanded &&
+                            lanes.map((lane, li) => {
+                              const ev = lane.find((e) => {
+                                const s = startOfDay(e.startAt);
+                                const end = startOfDay(e.endAt || e.startAt);
+                                const t = startOfDay(date);
+                                return t >= s && t <= end;
+                              });
+
+                              if (!ev)
+                                return <div key={li} className="h-5 mx-2" />;
+
+                              const pos = getEventPosition(ev, date);
+                              let chip =
+                                "h-5 text-[9px] font-black flex items-center px-2 truncate";
+
+                              if (pos === "start")
+                                chip += " rounded-l-md ml-2 mr-0";
+                              else if (pos === "end")
+                                chip += " rounded-r-md ml-0 mr-2";
+                              else if (pos === "middle")
+                                chip += " rounded-none mx-0";
+                              else chip += " rounded-md mx-2";
+
+                              return (
+                                <div
+                                  key={li}
+                                  className={`${chip} ${colorClass(
+                                    ev.category
+                                  )}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onOpenEvent(ev);
+                                  }}
+                                >
+                                  {pos === "start" || pos === "single"
+                                    ? ev.title
+                                    : "\u00A0"}
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
