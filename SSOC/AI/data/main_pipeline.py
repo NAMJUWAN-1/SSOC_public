@@ -32,10 +32,6 @@ def load_existing_data(filepath):
         df = pd.read_csv(INPUT_FILE_PATH, encoding='utf-8-sig')
     except UnicodeDecodeError:
         df = pd.read_csv(filepath, encoding='cp949')
-
-    # 필수 컬럼 체크
-    required_cols = ['channel_id', 'author_username', 'posted_at', 'raw_content']
-    missing_cols = [col for col in required_cols if col not in df.columns]
     
     # 날짜 변환
     print("날짜 포맷 변환 중...")
