@@ -10,13 +10,14 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from rest_framework_simplejwt.tokens import RefreshToken
+
 from .mm_auth import login_to_mattermost, fetch_mm_userinfo
 from .services import (
     get_or_create_user_from_mm,
     issue_refresh_cookie_and_store_in_db,
 )
-
-
+from local_apps.tokens.cookies import set_refresh_cookie
 from local_apps.channels.services import sync_user_channels
 
 
@@ -77,12 +78,33 @@ class MattermostLoginView(APIView):
             if mm_user_id:
                 sync_user_channels(user, mm_token, mm_user_id)
 
-            # 5) JWT access/refresh 발급 (refresh는 HttpOnly 쿠키로 세팅)
-            response = Response(status=status.HTTP_200_OK)
-            tokens = issue_refresh_cookie_and_store_in_db(user=user, response=response)
-
-            # 6) access 토큰은 JSON 응답으로 전달 (프론트에서 메모리 저장)
-            response.data = {"access": tokens["access"]}
+            # 5. JWT 토큰 발급 및 응답
+            refresh = RefreshToken.for_user(user)
+            access_token = str(refresh.access_token)
+            
+            # 응답 생성 (access 토큰 + 사용자 정보)
+            response_data = {
+                "access": access_token,
+                "user": {
+                    "user_id": user.user_id,
+                    "email": user.email,
+                    "name": user.name,
+                    "nickname": user.nickname,
+                }
+            }
+            
+            response = Response(response_data, status=status.HTTP_200_OK)
+            
+            # refresh 토큰을 HttpOnly 쿠키로 설정
+            # SIMPLE_JWT REFRESH_TOKEN_LIFETIME 사용 (14일 = 1209600초)
+            from datetime import timedelta
+            from django.conf import settings
+            
+            refresh_lifetime = settings.SIMPLE_JWT.get('REFRESH_TOKEN_LIFETIME', timedelta(days=14))
+            max_age_seconds = int(refresh_lifetime.total_seconds())
+            
+            set_refresh_cookie(response, str(refresh), max_age_seconds)
+            
             return response
 
         except Exception as e:
