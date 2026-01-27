@@ -22,9 +22,12 @@ class UserDetailView(APIView):
     """
     permission_classes = [IsAuthenticated]
     
-    def get(self, request):
-        # Query parameter에서 user_id 추출
-        requested_user_id = request.GET.get('user_id')
+    def get(self, request, user_id=None):
+        # 1. URL Path 파라미터가 없으면 Query Param에서 확인
+        if user_id is None:
+             user_id = request.GET.get('user_id')
+        
+        requested_user_id = user_id
         authenticated_user = request.user
         
         # user_id가 없는 경우: 전체 유저 목록 조회 (추후 구현)
@@ -86,11 +89,87 @@ class UserDetailView(APIView):
                 "type": channel.mm_channel_type,
                 "board": {
                     "board_id": board.board_id,
-                    "board_name": board.board_name,
                     "mm_team_id": board.mm_team_id,
+                    "board_name": board.board_name,
+                    "mm_board_id": board.mm_board_id,
                 }
             })
             
         user_data["channels"] = channels_data
         
         return Response(user_data, status=status.HTTP_200_OK)
+
+    def patch(self, request, user_id=None):
+        # 1. URL Path 파라미터가 없으면 허용하지 않음 (Query Param 지원 X)
+        if user_id is None:
+             return Response(
+                 {"error": "User ID must be provided in the URL path (e.g., /api/users/{id}/)"}, 
+                 status=status.HTTP_405_METHOD_NOT_ALLOWED
+             )
+        authenticated_user = request.user
+        
+        # 1. 권한 검증
+        if not user_id:
+             return Response({"error": "user_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            target_user_id = int(user_id)
+        except (ValueError, TypeError):
+             return Response({"error": "Invalid user_id format"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if target_user_id != authenticated_user.user_id:
+             return Response({"error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN)
+             
+        # 2. 데이터 처리
+        nickname = request.data.get('nickname')
+        profile_image_url = request.data.get('profile_image_url')
+        
+        user = authenticated_user
+        
+        # 닉네임 변경 시 중복 체크 (본인 닉네임 포함, 이미 존재하면 무조건 에러)
+        if nickname:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            if User.objects.filter(nickname=nickname).exists():
+                return Response({"error": "Nickname already exists"}, status=status.HTTP_409_CONFLICT)
+            user.nickname = nickname
+            
+        if profile_image_url is not None:
+            user.profile_image_url = profile_image_url
+            
+        user.save()
+        
+        return Response({
+            "user_id": user.user_id,
+            "nickname": user.nickname,
+            "profile_image_url": user.profile_image_url
+        }, status=status.HTTP_200_OK)
+
+
+class CheckNicknameView(APIView):
+    """
+    닉네임 중복 확인
+    
+    Endpoint: GET /api/users/check-nickname?nickname={nickname}
+    Permission: IsAuthenticated
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        nickname = request.GET.get("nickname")
+        
+        if not nickname:
+            return Response(
+                {"error": "Nickname is required"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        
+        is_exist = User.objects.filter(nickname=nickname).exists()
+        
+        return Response(
+            {"available": not is_exist},
+            status=status.HTTP_200_OK
+        )
