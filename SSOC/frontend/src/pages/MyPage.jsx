@@ -181,9 +181,3 @@ export default function MyPage() {
     </div>
   );
 }
-
-
-
-//1
-
-//2
