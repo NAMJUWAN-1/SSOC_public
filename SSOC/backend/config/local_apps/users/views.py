@@ -8,15 +8,59 @@ from local_apps.user_info.models import UserInfo
 
 class UserDetailView(APIView):
     """
-    현재 로그인한 사용자 정보 및 채널 목록 조회
+    사용자 정보 및 채널 목록 조회
     
-    Endpoint: GET /api/user/me/
+    Endpoint: GET /api/users?user_id={user_id}
     Permission: IsAuthenticated (JWT Access Token 필요)
+    
+    Query Parameters:
+        - user_id (required): 조회할 사용자 ID.
+          본인의 user_id만 조회 가능 (다른 사용자 조회 시 403)
+    
+    Note:
+        - GET /api/users (user_id 없이): 관리자 전용 전체 유저 목록 조회 (추후 구현 예정)
     """
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        user = request.user
+        # Query parameter에서 user_id 추출
+        requested_user_id = request.GET.get('user_id')
+        authenticated_user = request.user
+        
+        # user_id가 없는 경우: 전체 유저 목록 조회 (추후 구현)
+        if requested_user_id is None:
+            # 관리자 권한 체크
+            if not authenticated_user.is_staff:
+                return Response(
+                    {"error": "Admin permission required for user list"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            # 추후 구현 예정
+            return Response(
+                {"message": "User list endpoint is not implemented yet"},
+                status=status.HTTP_501_NOT_IMPLEMENTED
+            )
+        
+        # user_id가 있는 경우: 특정 사용자 조회
+        # 문자열을 정수로 변환 시도
+        try:
+            requested_user_id = int(requested_user_id)
+        except (ValueError, TypeError):
+            return Response(
+                {"error": "Invalid user_id format"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 요청한 user_id가 현재 인증된 사용자와 다르면 403
+        if requested_user_id != authenticated_user.user_id:
+            return Response(
+                {"error": "You can only access your own profile"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # 조회 대상 사용자 (항상 인증된 사용자)
+        user = authenticated_user
         
         # 1. 기본 사용자 정보
         user_data = {

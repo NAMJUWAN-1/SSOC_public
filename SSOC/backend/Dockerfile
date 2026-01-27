@@ -21,4 +21,4 @@ COPY . .
 EXPOSE 8000
 
 # 7. 서버 실행 (개발용 runserver, 외부 접속 허용)
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["python", "config/manage.py", "runserver", "0.0.0.0:8000"]
