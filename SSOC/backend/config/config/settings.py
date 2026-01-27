@@ -34,7 +34,11 @@ SECRET_KEY = "django-insecure-$5%zg45x2w$v&^roxh=*%3n7(n%d9lm&=gmto*02*w#5(l%%qt
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    'i14b209.p.ssafy.io',  # 실제 도메인 추가
+    'localhost',
+    '127.0.0.1',
+]
 
 
 # Application definition
@@ -59,6 +63,7 @@ INSTALLED_APPS = [
     "local_apps.tokens",
     "local_apps.boards",
     "local_apps.channels",
+    "local_apps.post_raws",
     "local_apps.user_info",
 ]
 
@@ -155,6 +160,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://i14b209.p.ssafy.io",
 ]
 CORS_ALLOW_CREDENTIALS = True
 

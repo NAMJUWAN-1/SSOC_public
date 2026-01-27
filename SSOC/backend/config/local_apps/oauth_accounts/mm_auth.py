@@ -101,3 +101,23 @@ def fetch_user_channels(mm_token: str, user_id: str) -> list[Dict[str, Any]]:
     response.raise_for_status()
     return response.json()
 
+
+def fetch_team(mm_token: str, team_id: str) -> Dict[str, Any]:
+    """
+    Mattermost Team ID로 팀 상세 정보 조회
+    
+    Args:
+        mm_token: MM 세션 토큰
+        team_id: MM Team ID
+    
+    Returns:
+        팀 정보 dict (id, display_name, name, description 등)
+    """
+    url = f"{settings.MATTERMOST_BASE_URL}/api/v4/teams/{team_id}"
+    headers = {
+        "Authorization": f"Bearer {mm_token}",
+    }
+    
+    response = requests.get(url, headers=headers, timeout=10)
+    response.raise_for_status()
+    return response.json()
