@@ -31,7 +31,7 @@ def merge_messages(df):
         content=('raw_content', lambda x: "\n".join(x.astype(str))), # [1차 병합] 정제 전 텍스트
         posted_at=('posted_at', 'first'),                   # 게시글 생성일 (첫 메시지 기준)
         mm_post_id=('mm_post_id', 'first'),                 # 링크 생성을 위한 메시지 ID
-        author_username=('author_username', 'first')        # 작성자
+        author_username=('author_username', 'first'),        # 작성자
         board_name=('board_name', 'first'),
         channel_name=('channel_name', 'first')
     )
@@ -43,13 +43,11 @@ def merge_messages(df):
     df_post['end_at'] = None
 
     # 6. 컬럼 순서 정리 (ERD post 테이블 순서 반영)
-    cols = ['temp_group_id', 'category_id', 'ai_title', 'content', 
-            'posted_at', 'start_at', 'end_at',
-            'channel_id', 'author_username', 'mm_post_id', 'board_name', 'channel_name']
+    cols = ['temp_group_id', 'category_id', 'channel_id', 'ai_title', 'content', 
+            'posted_at', 'start_at', 'end_at', 'author_username', 'mm_post_id', 'board_name', 'channel_name']
     df_post = df_post[cols]
 
     return df_post, df
-
 
 # df_post에 author_username 컬럼이 있는 이유
 # : 지금은 아니지만, 나중에 "관리자(admin)가 쓴 글만 공지로 인정한다" 같은 필터링 로직이 추가될 수도 있습니다.

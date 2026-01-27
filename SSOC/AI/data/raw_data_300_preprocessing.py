@@ -55,26 +55,39 @@ def run_cleaner_only():
     df = load_existing_data(INPUT_FILE_PATH)
     print(f"   - 로드된 데이터: {len(df)}건")
 
-    # 2. 정제 및 필터링 수행 (모듈 재사용)
-    print("\n>>> [정제 단계] 텍스트 정제 및 필터링 시작")
-    # 여기서 바로 message_cleaner의 함수를 호출합니다.
+    # 2. [수정] 병합 건너뛰기 & ID 생성
+    print("\n>>> [1단계] 병합 생략 (임시 ID 생성)")
+    # 1부터 시작하는 순차 번호 부여 (Auto Increment 시뮬레이션)
+    df['temp_group_id'] = range(1, len(df) + 1)
+    
+    # DB 스키마에 맞춘 빈 컬럼 생성 (병합 로직에서 해주던 작업을 여기서 수행)
+    df['category_id'] = None
+    df['ai_title'] = None
+    df['start_at'] = None
+    df['end_at'] = None
+
+    # 3. 정제 (Clean)
+    print("\n>>> [2단계] 텍스트 정제 및 필터링 (Clean) 시작")
     df_cleaned = filter_and_clean_posts(df, min_length=30)
 
-    # 3. 결과 저장
+    # 4. 결과 저장
     if not os.path.exists(OUTPUT_DIR):
         os.makedirs(OUTPUT_DIR)
 
-    # target_cols에 정의된 순서대로 깔끔하게 저장합니다.
     target_cols = [
-        'post_id', 'channel_id', 'author_username', 
-        'content', 'posted_at', 'board_name', 'channel_name'
+        'temp_group_id', 'category_id', 'ai_title', 'content', 
+        'posted_at', 'start_at', 'end_at', 
+        'channel_id', 'author_username', 'mm_post_id', 
+        'board_name', 'channel_name'
     ]
     
-    output_path = os.path.join(OUTPUT_DIR, "preprocessing_300.csv")
-    df_cleaned[target_cols].to_csv(output_path, index=False, encoding='utf-8-sig')
+    save_cols = [c for c in target_cols if c in df_cleaned.columns]
 
-    print(f"\n정제된 데이터 저장됨: {output_path}")
-    print(f"최종 건수: {len(df_cleaned)}건")
+    output_path = os.path.join(OUTPUT_DIR, "preprocessing_300.csv")
+    df_cleaned[save_cols].to_csv(output_path, index=False, encoding='utf-8-sig')
+
+    print(f"\n💾 완료! 정제된 데이터 저장됨: {output_path}")
+    print(f"   - 최종 건수: {len(df_cleaned)}건")
 
 
 if __name__ == "__main__":
