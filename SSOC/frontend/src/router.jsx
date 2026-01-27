@@ -4,6 +4,7 @@ import { useApp } from "./state/AppProvider";
 
 import Login from "./pages/Login";
 import DashboardPage from "./pages/DashboardPage";
+import MyPage from "./pages/MyPage";
 import CalendarPage from "./pages/CalendarPage";
 import AppLayout from "./layouts/AppLayout";
 
@@ -35,8 +36,8 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <DashboardPage /> },
+      { path: "mypage", element: <MyPage /> },
       { path: "calendar", element: <CalendarPage /> },
-      // PR#2: Calendar 추가
       { path: "*", element: <Navigate to="/app" replace /> },
     ],
   },

@@ -1,10 +1,11 @@
 import React from "react";
-import { Home, Calendar as CalendarIcon, LogOut } from "lucide-react";
+import { Home, Calendar as CalendarIcon, User, LogOut } from "lucide-react";
 import { LOGO_URL } from "../../data/mockData";
 
 export default function Sidebar({ active, onNavigate, user, onLogout }) {
   const items = [
     { id: "home", label: "홈", icon: Home },
+    { id: "mypage", label: "마이페이지", icon: User },
     { id: "calendar", label: "내 캘린더", icon: CalendarIcon },
   ];
 
