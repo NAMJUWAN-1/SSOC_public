@@ -4,7 +4,7 @@ import Sidebar from "../components/navigation/Sidebar";
 import { useApp } from "../state/AppProvider";
 
 import PostDetailModal from "../components/modals/PostDetailModal";
-import EditProfileModal from "../components/modals/EditProfileModal";
+import CalendarEventModal from "../components/modals/CalendarEventModal";
 import ConfirmModal from "../components/common/ConfirmModal";
 
 export default function AppLayout() {
@@ -13,11 +13,11 @@ export default function AppLayout() {
   const loc = useLocation();
 
   const active =
-    loc.pathname.includes("/app/mypage") ? "mypage" : "home";
+    loc.pathname.includes("/app/calendar") ? "calendar" : "home";
 
   const onNav = (id) => {
     if (id === "home") nav("/app");
-    if (id === "mypage") nav("/app/mypage");
+    if (id === "calendar") nav("/app/calendar");
   };
 
   return (
@@ -41,17 +41,17 @@ export default function AppLayout() {
           mode={state.modals.postDetail.mode}
           payload={state.modals.postDetail.payload}
           onClose={actions.closePostDetail}
-          onRegister={() => alert("캘린더 페이지(PR#2)에서 일정 등록 기능을 추가할 예정입니다.")}
-          onEditEvent={() => {}}
-          onDeleteEvent={() => {}}
+          onRegister={(post) => actions.openCalendarEventCreateFromPost(post)}
+          onEditEvent={(ev) => actions.openCalendarEventEdit(ev)}
+          onDeleteEvent={(ev) => actions.openConfirm("delete_event", { eventId: ev.id })}
         />
       )}
 
-      {state.modals.editProfile.open && (
-        <EditProfileModal
-          user={state.auth.user}
-          onClose={actions.closeEditProfile}
-          onSave={(u) => actions.saveProfile(u)}
+      {state.modals.calendarEvent.open && (
+        <CalendarEventModal
+          mode={state.modals.calendarEvent.mode}
+          payload={state.modals.calendarEvent.payload}
+          onClose={actions.closeCalendarEvent}
         />
       )}
 
