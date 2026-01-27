@@ -1,0 +1,5 @@
+export const OAUTH_STATUS = {
+  NEW_USER: "NEW_USER",
+  EXISTING_USER: "EXISTING_USER",
+  FAIL: "FAIL",
+}

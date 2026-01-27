@@ -1,0 +1,4 @@
+@import "tailwindcss";
+
+/* optional: 전역 기본값 */
+html, body, #root { height: 100%; }
