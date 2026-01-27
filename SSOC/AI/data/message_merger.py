@@ -49,6 +49,5 @@ def merge_messages(df):
 
     return df_post, df
 
-
 # df_post에 author_username 컬럼이 있는 이유
 # : 지금은 아니지만, 나중에 "관리자(admin)가 쓴 글만 공지로 인정한다" 같은 필터링 로직이 추가될 수도 있습니다.
