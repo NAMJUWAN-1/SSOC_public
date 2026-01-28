@@ -63,7 +63,10 @@ INSTALLED_APPS = [
     "local_apps.tokens",
     "local_apps.boards",
     "local_apps.channels",
+    "local_apps.post_raws",
     "local_apps.user_info",
+    "local_apps.categories",
+    "local_apps.posts",
     "local_apps.search_logs",
 ]
 
