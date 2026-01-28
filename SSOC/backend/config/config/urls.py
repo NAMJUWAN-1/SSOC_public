@@ -24,4 +24,5 @@ urlpatterns = [
     path("api/auth/mm/", include("local_apps.oauth_accounts.urls")),
     path("api/users/", include("local_apps.users.urls")),
     path("api/channels/", include("local_apps.channels.urls")),
+    path("api/search-logs/", include("local_apps.search_logs.urls")),
 ]

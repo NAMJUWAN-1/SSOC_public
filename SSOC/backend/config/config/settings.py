@@ -63,8 +63,8 @@ INSTALLED_APPS = [
     "local_apps.tokens",
     "local_apps.boards",
     "local_apps.channels",
-    "local_apps.post_raws",
     "local_apps.user_info",
+    "local_apps.search_logs",
 ]
 
 MIDDLEWARE = [

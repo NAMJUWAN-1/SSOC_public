@@ -3,6 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from local_apps.users.models import User
 from local_apps.user_info.models import UserInfo
 
 
@@ -144,6 +145,56 @@ class UserDetailView(APIView):
             "nickname": user.nickname,
             "profile_image_url": user.profile_image_url
         }, status=status.HTTP_200_OK)
+    
+    def delete(self, request, user_id=None):
+        """
+        회원 탈퇴 (Hard Delete)
+        
+        - 본인만 탈퇴 가능
+        - Cascade delete: OAuthAccount, Token, Archive, Calendar, SearchLog, UserInfo
+        - 연관된 모든 refresh token을 blacklist 처리
+        """
+        authenticated_user = request.user
+        
+        # 1. URL Path 파라미터 검증
+        if user_id is None:
+            return Response(
+                {"error": "User ID must be provided in the URL path (e.g., /api/users/{id}/)"},
+                status=status.HTTP_405_METHOD_NOT_ALLOWED
+            )
+        
+        try:
+            target_user_id = int(user_id)
+        except (ValueError, TypeError):
+            return Response(
+                {"error": "Invalid user_id format"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 2. 권한 검증 (본인만 삭제 가능)
+        if target_user_id != authenticated_user.user_id:
+            return Response(
+                {"error": "You can only delete your own account"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            user = User.objects.get(user_id=target_user_id)
+        except User.DoesNotExist:
+            return Response(
+                {"error": "User not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # 3. 모든 outstanding refresh token을 blacklist 처리
+        from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
+        OutstandingToken.objects.filter(user_id=user.user_id).delete()
+        
+        # 4. User 삭제 (CASCADE로 연관 데이터 자동 삭제)
+        # - OAuthAccount, UserInfo, SearchLog, Archive, CalendarEvent 등
+        user.delete()
+        
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class CheckNicknameView(APIView):
