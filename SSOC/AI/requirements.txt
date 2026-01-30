@@ -1,7 +1,9 @@
-fastapi
-uvicorn
-pydantic
-python-dotenv
-requests
-httpx
+sqlalchemy
 psycopg2-binary
+pgvector
+pandas
+numpy
+requests
+aiohttp
+python-dotenv
+urllib3
