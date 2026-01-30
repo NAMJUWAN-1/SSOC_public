@@ -1,19 +1,21 @@
 import { ExternalLink } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../state/AppProvider";
 import MMLoginModal from "../components/modals/MMLoginModal";
+
 
 export default function Login() {
   const { state } = useApp();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
-  if (state.isAuthenticated) {
-    navigate("/app", { replace: true });
-    return null;
-  }
-
+  useEffect(() => {
+    if (state.isAuthenticated) {
+      navigate("/app", { replace: true });
+    }
+  }, [state.isAuthenticated, navigate]);
+  
   const LOGO_URL = "https://i.postimg.cc/RZbh63Gc/LOGO-total.png";
 
   return (
