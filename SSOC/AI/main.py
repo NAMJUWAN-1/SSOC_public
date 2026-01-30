@@ -58,10 +58,18 @@ async def handle_mattermost_webhook(request: Request):
 
         internal_channel_id = result[0] # 우리 DB의 bigint PK
 
-        # 5. post_raw 테이블에 최종 저장
+        # 5. post_raw 테이블에 최종 저장 (is_processed 필드 추가)
         insert_query = """
-            INSERT INTO post_raw (channel_id, author_username, mm_post_id, raw_content, posted_at, update_at)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            INSERT INTO post_raw (
+                channel_id, 
+                author_username, 
+                mm_post_id, 
+                raw_content, 
+                posted_at, 
+                update_at,
+                is_processed  -- 추가된 컬럼
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s) -- 파라미터 개수 7개로 변경
         """
         cur.execute(insert_query, (
             internal_channel_id,
@@ -69,7 +77,8 @@ async def handle_mattermost_webhook(request: Request):
             mm_post_id,
             raw_content,
             posted_at,
-            posted_at
+            posted_at,
+            False  # 새로 수집된 메시지는 처리 전이므로 False로 저장
         ))
 
         conn.commit()
