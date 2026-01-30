@@ -4,11 +4,30 @@ import { useApp } from "../state/AppProvider";
 
 import SearchWithHistory from "../components/search/SearchWithHistory";
 import BoardChannelFilter from "../components/filter/BoardChannelFilter";
-import PostList from "../components/posts/PostList";
+import ArchiveGrid from "../components/posts/ArchiveGrid";
 import Pagination from "../components/common/Pagination";
 
 export default function MyPage() {
   const { state, actions } = useApp();
+
+  // boards tree (for filter UI)
+  const boards = useMemo(() => {
+    const userChannels = state.auth.user?.channels || [];
+    const map = new Map();
+    for (const ch of userChannels) {
+      const b = ch.board;
+      if (!b) continue;
+      const bid = b.board_id;
+      if (!map.has(bid)) {
+        map.set(bid, { board_id: bid, board_name: b.board_name, channels: [] });
+      }
+      const entry = map.get(bid);
+      if (!entry.channels.some((x) => x.channel_id === ch.channel_id)) {
+        entry.channels.push({ channel_id: ch.channel_id, channel_name: ch.channel_name });
+      }
+    }
+    return Array.from(map.values());
+  }, [state.auth.user]);
 
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
@@ -17,16 +36,34 @@ export default function MyPage() {
   const [selectedChannels, setSelectedChannels] = useState([]);
   const ITEMS_PER_PAGE = 10;
 
+  // '남은 일정'은 현재 시간 기준으로 계산 (1분마다 갱신)
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(Date.now()), 60 * 1000);
+    return () => clearInterval(t);
+  }, []);
+
   const myArchivedPosts = useMemo(() => {
-    return state.posts.filter((p) => state.archives.has(p.id));
+    // 현재 단계에서는 backend에서 아카이브 데이터를 가져오지 않음
+    return (state.posts || []).filter((p) => {
+      const pid = p.post_id ?? p.id;
+      return pid != null && state.archives.has(String(pid));
+    });
   }, [state.posts, state.archives]);
 
   const filtered = useMemo(() => {
+    const ql = q.toLowerCase();
     return myArchivedPosts.filter((p) => {
-      const matchQ = p.title.toLowerCase().includes(q.toLowerCase());
+      const title = String(p.ai_title ?? p.title ?? "").toLowerCase();
+      const matchQ = title.includes(ql);
+
+      const pidBoard = p.board_id ?? p.boardId;
+      const pidChannel = p.channel_id ?? p.channelId;
+
       let matchFilter = true;
-      if (selectedChannels.length > 0) matchFilter = selectedChannels.includes(p.channelId);
-      else if (selectedBoard) matchFilter = p.boardId === selectedBoard;
+      if (selectedChannels.length > 0) matchFilter = selectedChannels.includes(pidChannel);
+      else if (selectedBoard) matchFilter = pidBoard === selectedBoard;
+
       return matchQ && matchFilter;
     });
   }, [myArchivedPosts, q, selectedBoard, selectedChannels]);
@@ -38,14 +75,22 @@ export default function MyPage() {
     return filtered.slice(s, s + ITEMS_PER_PAGE);
   }, [filtered, page]);
 
-  const myArchiveCount = myArchivedPosts.length;
+  const myArchiveCount = state.archiveCount || myArchivedPosts.length;
   const upcomingCount = useMemo(() => {
-    const now = new Date();
-    return state.calendarEvents.filter((ev) => new Date(ev.startAt) > now).length;
-  }, [state.calendarEvents]);
+    const now = nowTick;
+    return state.calendarEvents.filter((ev) => {
+      const end = new Date(ev.endAt || ev.startAt).getTime();
+      if (Number.isNaN(end)) return false;
+      return end >= now;
+    }).length;
+  }, [state.calendarEvents, nowTick]);
 
   const onSelectBoard = (boardId) => {
-    if (selectedBoard === boardId) { setSelectedBoard(null); setSelectedChannels([]); return; }
+    if (selectedBoard === boardId) {
+      setSelectedBoard(null);
+      setSelectedChannels([]);
+      return;
+    }
     setSelectedBoard(boardId);
     setSelectedChannels([]);
   };
@@ -66,10 +111,16 @@ export default function MyPage() {
         <div className="flex items-center justify-between min-w-[800px] gap-8">
           <div className="flex items-center gap-6">
             <div className="w-24 h-24 rounded-full bg-slate-100 p-1 shadow-md overflow-hidden">
-              {state.auth.user.profileImage ? (
-                <img src={state.auth.user.profileImage} alt="profile" className="w-full h-full object-cover rounded-full" />
+              {state.auth.user.profile_image_url ? (
+                <img
+                  src={state.auth.user.profile_image_url}
+                  alt="profile"
+                  className="w-full h-full object-cover rounded-full"
+                />
               ) : (
-                <div className="w-full h-full bg-slate-200 flex items-center justify-center text-slate-400 font-black">U</div>
+                <div className="w-full h-full bg-slate-200 flex items-center justify-center text-slate-400 font-black">
+                  U
+                </div>
               )}
             </div>
             <div>
@@ -92,7 +143,7 @@ export default function MyPage() {
               <LogOut size={16} className="mr-2" /> 로그아웃
             </button>
             <button
-              onClick={() => alert("탈퇴 모달/페이지는 백엔드 연결 시점에 확정 추천")}
+              onClick={() => actions.openConfirm("delete_account", null)}
               className="px-5 py-2.5 bg-red-50 text-red-500 rounded-xl text-sm font-black hover:bg-red-100 flex items-center shadow-sm whitespace-nowrap"
             >
               <Trash2 size={16} className="mr-2" /> 회원 탈퇴
@@ -108,7 +159,8 @@ export default function MyPage() {
             <div>
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">스크랩한 공지 수</p>
               <p className="text-xl font-black text-slate-900">
-                {myArchiveCount}<span className="text-xs font-medium text-slate-400 ml-1">개</span>
+                {myArchiveCount}
+                <span className="text-xs font-medium text-slate-400 ml-1">개</span>
               </p>
             </div>
           </div>
@@ -120,7 +172,8 @@ export default function MyPage() {
             <div>
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">남은 일정 수</p>
               <p className="text-xl font-black text-slate-900">
-                {upcomingCount}<span className="text-xs font-medium text-slate-400 ml-1">건</span>
+                {upcomingCount}
+                <span className="text-xs font-medium text-slate-400 ml-1">건</span>
               </p>
             </div>
           </div>
@@ -136,10 +189,11 @@ export default function MyPage() {
 
           <div className="relative w-full sm:w-auto flex items-center gap-2">
             <SearchWithHistory
-              storageKey="recent_searches_mypage"
               value={q}
-              onChange={(e) => setQ(e.target.value)}
+              onChange={setQ}
               placeholder="제목으로 검색..."
+              historyMode="memory"
+              onSearch={(term) => setQ(term)}
             />
             <button
               onClick={() => setFilterOpen((v) => !v)}
@@ -155,14 +209,19 @@ export default function MyPage() {
 
         <BoardChannelFilter
           open={filterOpen}
+          boards={boards}
+          showCategory={false}
           selectedBoard={selectedBoard}
           selectedChannels={selectedChannels}
           onSelectBoard={onSelectBoard}
           onToggleChannel={onToggleChannel}
-          onReset={() => { setSelectedBoard(null); setSelectedChannels([]); }}
+          onReset={() => {
+            setSelectedBoard(null);
+            setSelectedChannels([]);
+          }}
         />
 
-        <PostList
+        <ArchiveGrid
           items={current}
           archivesSet={state.archives}
           onOpen={actions.openPostDetailFromPost}

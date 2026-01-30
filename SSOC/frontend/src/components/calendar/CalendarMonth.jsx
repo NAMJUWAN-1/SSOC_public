@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { isSameDay, startOfDay } from "../../utils/date";
+import { getDefaultColorForCategory, makeChipStyle } from "../../utils/eventColor";
 
 const monthNames = [
   "1월","2월","3월","4월","5월","6월",
@@ -20,15 +21,6 @@ function getEventPosition(ev, date) {
   return "middle";
 }
 
-function colorClass(category) {
-  if (!category) return "bg-slate-100 text-slate-700";
-  if (category === "시험") return "bg-purple-100 text-purple-800";
-  if (category === "과제") return "bg-red-100 text-red-800";
-  if (category === "특강") return "bg-indigo-100 text-indigo-800";
-  if (category === "취업") return "bg-blue-100 text-blue-800";
-  if (category === "행사") return "bg-emerald-100 text-emerald-800";
-  return "bg-slate-100 text-slate-700";
-}
 
 export default function CalendarMonth({
   currentDate,
@@ -83,14 +75,28 @@ export default function CalendarMonth({
           return e >= weekStart && s <= weekEnd;
         })
         .sort((a, b) => {
-          const sa = startOfDay(a.startAt).getTime();
-          const sb = startOfDay(b.startAt).getTime();
+          const sa = new Date(a.startAt).getTime();
+          const sb = new Date(b.startAt).getTime();
+          const ea = new Date(a.endAt || a.startAt).getTime();
+          const eb = new Date(b.endAt || b.startAt).getTime();
+
+          // NOTE: 겹치는 일정의 "위/아래" 우선순위 규칙
+          // - 포함(완전 겹침/포함 관계): 긴 일정(범위가 더 큰 것)이 위로
+          // - 부분 겹침: 빨리 끝나는 일정이 위로
+          const overlap = sa <= eb && sb <= ea;
+          if (overlap) {
+            const aContains = sa <= sb && ea >= eb;
+            const bContains = sb <= sa && eb >= ea;
+            if (aContains && !bContains) return -1;
+            if (bContains && !aContains) return 1;
+
+            if (ea !== eb) return ea - eb; // partial overlap: earlier end first
+            if (sa !== sb) return sa - sb;
+            return String(a.id).localeCompare(String(b.id));
+          }
+
           if (sa !== sb) return sa - sb;
-
-          const ea = startOfDay(a.endAt || a.startAt).getTime();
-          const eb = startOfDay(b.endAt || b.startAt).getTime();
           if (ea !== eb) return ea - eb;
-
           return String(a.id).localeCompare(String(b.id));
         });
 
@@ -255,9 +261,11 @@ export default function CalendarMonth({
                               return (
                                 <div
                                   key={li}
-                                  className={`${chip} ${colorClass(
-                                    ev.category
-                                  )}`}
+                                  className={`${chip} border border-transparent`}
+                                  style={makeChipStyle(ev.color || getDefaultColorForCategory(ev.category), {
+                                    accentLeft: pos === "start" || pos === "single",
+                                    accentRight: pos === "end" || pos === "single",
+                                  })}
                                 >
                                   {pos === "start" || pos === "single"
                                     ? ev.title
@@ -299,9 +307,11 @@ export default function CalendarMonth({
                               return (
                                 <div
                                   key={li}
-                                  className={`${chip} ${colorClass(
-                                    ev.category
-                                  )}`}
+                                  className={`${chip} border border-transparent`}
+                                  style={makeChipStyle(ev.color || getDefaultColorForCategory(ev.category), {
+                                    accentLeft: pos === "start" || pos === "single",
+                                    accentRight: pos === "end" || pos === "single",
+                                  })}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     onOpenEvent(ev);

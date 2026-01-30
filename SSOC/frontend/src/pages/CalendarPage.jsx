@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { useApp } from "../state/AppProvider";
 import CalendarMonth from "../components/calendar/CalendarMonth";
@@ -8,6 +8,13 @@ export default function CalendarPage() {
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [expandedWeek, setExpandedWeek] = useState(null);
+
+  useEffect(() => {
+    // API-ready: fetch events for current month (backend 미구현 시 무시됨)
+    const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString();
+    const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59).toISOString();
+    actions.fetchCalendarEvents?.({ start, end });
+  }, [currentDate]);
 
   return (
     <div className="p-4 md:p-10 max-w-7xl mx-auto space-y-6">

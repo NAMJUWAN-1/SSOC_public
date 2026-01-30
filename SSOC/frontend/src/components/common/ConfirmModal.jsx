@@ -4,7 +4,7 @@ import ModalBase from "./ModalBase";
 import { useApp } from "../../state/AppProvider";
 
 export default function ConfirmModal({ type, payload }) {
-  const { actions, state } = useApp();
+  const { actions } = useApp();
 
   const config = (() => {
     if (type === "logout") {
@@ -34,6 +34,16 @@ export default function ConfirmModal({ type, payload }) {
         confirmClass: "bg-red-600 hover:bg-red-700 text-white",
       };
     }
+    if (type === "delete_account") {
+      return {
+        icon: <Trash2 size={28} className="text-red-600" />,
+        title: "회원 탈퇴를 진행할까요?",
+        desc: "계정이 삭제되며 복구할 수 없습니다.",
+        confirmText: "탈퇴하기",
+        confirmClass: "bg-red-600 hover:bg-red-700 text-white",
+      };
+    }
+
     return {
       icon: <AlertTriangle size={28} className="text-red-600" />,
       title: "확인",
@@ -60,7 +70,14 @@ export default function ConfirmModal({ type, payload }) {
       actions.closePostDetail();
       return;
     }
+    if (type === "delete_account") {
+      actions.closeConfirm();
+      actions.deleteAccount();
+      return;
+    }
+    // Fallback: unknown confirm type -> show placeholder instead of silent no-op
     actions.closeConfirm();
+    alert("구현중입니다.");
   };
 
   return (
@@ -78,10 +95,7 @@ export default function ConfirmModal({ type, payload }) {
           >
             취소
           </button>
-          <button
-            onClick={onConfirm}
-            className={`flex-1 py-3 rounded-xl font-black ${config.confirmClass}`}
-          >
+          <button onClick={onConfirm} className={`flex-1 py-3 rounded-xl font-black ${config.confirmClass}`}>
             {config.confirmText}
           </button>
         </div>

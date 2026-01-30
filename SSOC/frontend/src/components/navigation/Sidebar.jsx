@@ -47,8 +47,8 @@ export default function Sidebar({ active, onNavigate, user, onLogout }) {
           className="w-full bg-slate-900/50 rounded-xl p-2 flex items-center overflow-hidden border border-slate-800 cursor-pointer hover:bg-slate-800 transition-colors"
         >
           <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-500 flex-shrink-0 overflow-hidden flex items-center justify-center font-black">
-            {user.profileImage ? (
-              <img src={user.profileImage} alt="profile" className="w-full h-full object-cover" />
+            {user.profile_image_url ? (
+              <img src={user.profile_image_url} alt="profile" className="w-full h-full object-cover" />
             ) : (
               (user.nickname || "SS").slice(0, 2)
             )}
