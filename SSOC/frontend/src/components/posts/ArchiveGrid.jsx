@@ -9,6 +9,8 @@ function formatKoreanDate(dt) {
     year: "2-digit",
     month: "2-digit",
     day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
@@ -24,17 +26,7 @@ export default function ArchiveGrid({
   archivesSet,
   onToggleArchive,
   showArchiveConfirm,
-  loading = false,
 }) {
-  if (loading) {
-    return (
-      <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-24 text-center text-slate-400 font-black">
-        불러오는 중...
-        <div className="text-sm font-medium mt-1">잠시만 기다려주세요.</div>
-      </div>
-    );
-  }
-
   if (!items || items.length === 0) {
     return (
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-24 text-center text-slate-400 font-black">
@@ -45,7 +37,7 @@ export default function ArchiveGrid({
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
       {items.map((p) => {
         const id = String(p.post_id ?? p.id);
         const title = p.ai_title ?? p.title ?? "(제목 없음)";
@@ -61,64 +53,68 @@ export default function ArchiveGrid({
           <div
             key={id}
             onClick={() => onOpen?.(p)}
-            className="bg-white rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition cursor-pointer p-6 relative overflow-hidden group"
+            className="bg-white rounded-[2rem] border border-slate-100 shadow-md hover:shadow-xl hover:-translate-y-1 hover:bg-white cursor-pointer transition-all duration-300 flex flex-col group relative overflow-hidden h-full active:scale-95 hover:scale-[1.03] apple-bezier"
           >
-            <div className="absolute inset-x-0 top-0 h-1 bg-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute inset-x-0 top-0 h-1.5 bg-[#1E325C] scale-x-0 group-hover:scale-x-100 transition-transform duration-300" />
 
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  {channelName && (
-                    <span className="px-2.5 py-1 bg-slate-50 text-slate-600 rounded-lg text-[11px] font-black border border-slate-100">
-                      # {channelName}
-                    </span>
-                  )}
-                  {categoryName && (
-                    <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-[11px] font-black border border-emerald-100">
-                      {categoryName}
-                    </span>
-                  )}
-                </div>
-
-                <h3 className="mt-3 font-black text-slate-900 leading-snug text-base line-clamp-2 group-hover:text-emerald-700 transition-colors">
-                  {title}
-                </h3>
+            <div className="p-6 flex flex-col h-full">
+              {/* Header Tags */}
+              <div className="flex items-center gap-2 mb-4 flex-wrap">
+                {channelName && (
+                  <span className="px-2.5 py-1 bg-slate-50 text-slate-600 rounded-lg text-[10px] font-black border border-slate-100">
+                    # {channelName}
+                  </span>
+                )}
+                {categoryName && (
+                  <span className="px-2.5 py-1 bg-slate-100 text-[#1E325C] rounded-lg text-[10px] font-black border border-slate-200">
+                    {categoryName}
+                  </span>
+                )}
               </div>
 
-              {onToggleArchive ? (
-                <button
-                  className={[
-                    "p-2 rounded-xl transition-all shrink-0",
-                    isArchived ? "bg-yellow-50 scale-110" : "bg-slate-50 group-hover:bg-white",
-                  ].join(" ")}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (showArchiveConfirm && isArchived) {
-                      showArchiveConfirm(id);
-                    } else {
-                      onToggleArchive(id);
-                    }
-                  }}
-                  aria-label="toggle-archive"
-                >
-                  <Star size={18} className={isArchived ? "text-yellow-400 fill-current" : "text-slate-200"} />
-                </button>
-              ) : null}
-            </div>
+              {/* Title */}
+              <h3 className="font-black text-slate-900 group-hover:text-[#1E325C] transition-colors leading-snug text-base line-clamp-2 h-12">
+                {title}
+              </h3>
 
-            {content ? (
-              <p className="mt-3 text-sm text-slate-500 leading-relaxed line-clamp-3">
-                {snippet(content)}
-              </p>
-            ) : (
-              <p className="mt-3 text-sm text-slate-400 leading-relaxed">
-                (내용 없음)
-              </p>
-            )}
+              {/* Content Preview */}
+              <div className="mt-3 flex-1">
+                {content ? (
+                  <p className="text-sm text-slate-500 leading-relaxed line-clamp-3">
+                    {snippet(content)}
+                  </p>
+                ) : (
+                  <p className="text-sm text-slate-300 leading-relaxed italic">
+                    (내용 요약 없음)
+                  </p>
+                )}
+              </div>
 
-            <div className="mt-5 flex items-center text-[11px] font-black text-slate-400 gap-2">
-              <Clock size={14} className="text-slate-300" />
-              <span>{formatKoreanDate(postedAt)}</span>
+              {/* Footer: Date & Action */}
+              <div className="mt-6 pt-4 border-t border-slate-50 flex items-center justify-between">
+                <span className="text-[10px] font-black text-slate-400">
+                  {formatKoreanDate(postedAt)}
+                </span>
+
+                {onToggleArchive ? (
+                  <button
+                    className={[
+                      "p-2 rounded-xl transition-all",
+                      isArchived ? "bg-yellow-50 scale-110" : "bg-slate-50 group-hover:bg-white",
+                    ].join(" ")}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (showArchiveConfirm && isArchived) {
+                        showArchiveConfirm(id);
+                      } else {
+                        onToggleArchive(id);
+                      }
+                    }}
+                  >
+                    <Star size={18} className={isArchived ? "text-yellow-400 fill-current" : "text-slate-200"} />
+                  </button>
+                ) : null}
+              </div>
             </div>
           </div>
         );

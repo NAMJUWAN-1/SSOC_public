@@ -2,10 +2,14 @@
 export const LOGO_URL = "https://cdn-icons-png.flaticon.com/512/2921/2921222.png";
 
 export const AVATAR_PRESETS = [
-  "/avatars/profile_1.png",
-  "/avatars/profile_2.png",
-  "/avatars/profile_3.png",
-  "/avatars/profile_4.png",
+  "/avatars/1.png",
+  "/avatars/2.png",
+  "/avatars/3.png",
+  "/avatars/4.png",
+  "/avatars/5.png",
+  "/avatars/6.png",
+  "/avatars/7.png",
+  "/avatars/8.png",
 ];
 
 export const MOCK_BOARDS = [

@@ -47,23 +47,40 @@ export function buildMattermostPermalink({ boardId, mmPostId }) {
 export function getMattermostLink(obj) {
   if (!obj) return null;
 
-  const direct = ensureAbsolute(
-    obj.mm_post_url,
-    obj.mm_post_permalink,
-    obj.mm_post_link,
-    obj.mmLink,
+  // 1. Try fields that might hold a full link
+  const direct = firstNonEmpty(
     obj.mm_link,
+    obj.mmLink,
     obj.mattermost_link,
+    obj.mattermostLink,
+    obj.mm_post_url,
+    obj.mmPostUrl,
+    obj.mm_post_permalink,
+    obj.mmPostPermalink,
+    obj.mm_post_link,
+    obj.mmPostLink,
+    obj.permalink,
     obj.link,
     obj.url
   );
+  const absoluteDirect = ensureAbsolute(direct);
+  if (absoluteDirect && absoluteDirect.includes("meeting.ssafy.com")) return absoluteDirect;
 
+  // 2. Try building from ids with exhaustive field name checks
   const boardId = firstNonEmpty(
+    obj.mm_board_id,
+    obj.mmBoardId,
+    obj.board?.mm_board_id,
+    obj.board?.mmBoardId,
     obj.board_id,
     obj.boardId,
     obj.board?.board_id,
     obj.board?.boardId,
     obj.board?.id,
+    obj.team_id,
+    obj.teamId,
+    obj.mm_team_id,
+    obj.mmTeamId,
     typeof obj.board === "string" ? obj.board : null
   );
 
@@ -71,15 +88,17 @@ export function getMattermostLink(obj) {
     obj.mm_post_id,
     obj.mmPostId,
     obj.mattermost_post_id,
+    obj.mattermostPostId,
     obj.post_mm_id,
-    obj.mm_postid
+    obj.postMmId,
+    obj.mm_postid,
+    obj.mmPostid,
+    obj.post_id, // Last resort if internal ID is used as MM ID
+    obj.id
   );
 
   const computed = buildMattermostPermalink({ boardId, mmPostId });
 
-  // If backend already provides a correct meeting.ssafy permalink, keep it.
-  if (direct && /meeting\.ssafy\.com\/.+\/pl\//i.test(direct)) return direct;
-
-  // Prefer computed when possible; else use direct
-  return computed || direct;
+  // Prefer computed (ID-based) if valid meeting.ssafy link; else use direct absolute link
+  return computed || absoluteDirect;
 }

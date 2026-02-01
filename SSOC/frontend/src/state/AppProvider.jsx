@@ -107,6 +107,7 @@ const initialState = {
 
   posts: [],
   archives: new Set(),
+  archivedPosts: [],
   archiveIdByPostId: {},
   archiveCount: 0,
   calendarEvents: [],
@@ -152,11 +153,12 @@ function reducer(state, action) {
       return {
         ...state,
         archives: action.archives,
+        archivedPosts: action.archivedPosts ?? state.archivedPosts,
         archiveIdByPostId: action.archiveIdByPostId ?? state.archiveIdByPostId,
         archiveCount: typeof action.archiveCount === "number" ? action.archiveCount : state.archiveCount,
       };
     }
-    
+
     case "ARCHIVES/SET_MAP_ITEM": {
       const next = { ...(state.archiveIdByPostId || {}) };
       if (action.archiveId == null) delete next[action.postId];
@@ -344,13 +346,13 @@ export function AppProvider({ children }) {
         // best-effort preload (backend 미구현 시에도 무시됨)
         try {
           loadMyArchives(id);
-        } catch {}
+        } catch { }
         try {
           const now = new Date();
           const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
           const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
           fetchCalendarEvents({ start, end });
-        } catch {}
+        } catch { }
 
         // optional scheduled refresh
         refreshTimerApi.schedule(token);
@@ -433,14 +435,14 @@ export function AppProvider({ children }) {
 
       const set = new Set();
       const map = {};
+      const archivedPosts = [];
 
       for (const a of list) {
+        const postObj = a?.post || a;
         const postId =
-          a?.post_id ??
-          a?.postId ??
-          a?.post?.post_id ??
-          a?.post?.id ??
-          a?.post?.postId ??
+          postObj?.post_id ??
+          postObj?.id ??
+          postObj?.postId ??
           null;
         const archiveId = a?.archive_id ?? a?.archiveId ?? a?.id ?? null;
 
@@ -448,12 +450,21 @@ export function AppProvider({ children }) {
           const pid = String(postId);
           set.add(pid);
           if (archiveId != null) map[pid] = archiveId;
+
+          // Attach archive metadata to post object
+          const enrichedPost = {
+            ...postObj,
+            archive_id: archiveId,
+            archive_created_at: a?.created_at ?? a?.createdAt ?? null,
+          };
+          archivedPosts.push(enrichedPost);
         }
       }
 
       dispatch({
         type: "ARCHIVES/SET",
         archives: set,
+        archivedPosts,
         archiveIdByPostId: map,
         archiveCount: set.size,
       });
@@ -489,7 +500,6 @@ export function AppProvider({ children }) {
       archiveCount: next.size,
     });
 
-    // If backend isn't ready, stop here
     if (!userId) return;
 
     try {
@@ -499,8 +509,8 @@ export function AppProvider({ children }) {
         if (archiveId != null) {
           dispatch({ type: "ARCHIVES/SET_MAP_ITEM", postId: pid, archiveId });
         }
-        // count sync
-        dispatch({ type: "ARCHIVES/SET_COUNT", count: next.size });
+        // refresh list to get full post objects for MyPage
+        await loadMyArchives(userId);
         return;
       }
 
@@ -516,8 +526,8 @@ export function AppProvider({ children }) {
 
       if (archiveId) {
         await deleteArchive({ user_id: userId, archive_id: archiveId });
-        dispatch({ type: "ARCHIVES/SET_MAP_ITEM", postId: pid, archiveId: null });
-        dispatch({ type: "ARCHIVES/SET_COUNT", count: next.size });
+        // refresh list
+        await loadMyArchives(userId);
       } else {
         console.warn("[archives] missing archive_id for post:", pid);
       }
@@ -648,7 +658,7 @@ export function AppProvider({ children }) {
       return false;
     }
   };
-// Profile setup / edit
+  // Profile setup / edit
   const saveProfile = async ({ nickname, profile_image_url }) => {
     const id = state.user?.user_id;
     if (!id) throw new Error("No user_id");

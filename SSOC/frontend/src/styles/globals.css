@@ -1,0 +1,344 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+    --font-size: 14px;
+    --background: #FFFFFF;
+    --foreground: #1B1D22;
+    --card: #FFFFFF;
+    --card-foreground: #1B1D22;
+    --popover: #FFFFFF;
+    --popover-foreground: #1B1D22;
+    --primary: #1E325C;
+    --primary-foreground: #FFFFFF;
+    --secondary: #f1f3f7;
+    --secondary-foreground: #1B1D22;
+    --muted: #f1f3f7;
+    --muted-foreground: #64748b;
+    --accent: #FFBC1F;
+    --accent-foreground: #1E325C;
+    --destructive: #ef4444;
+    --destructive-foreground: #ffffff;
+    --border: #e2e8f0;
+    --input: transparent;
+    --input-background: #ffffff;
+    --switch-background: #e2e8f0;
+    --font-weight-medium: 500;
+    --font-weight-normal: 400;
+    --ring: #1E325C;
+    --chart-1: #1E325C;
+    --chart-2: #FFBC1F;
+    --chart-3: #64748b;
+    --chart-4: #ef4444;
+    --chart-5: #1B1D22;
+    --radius: 0.625rem;
+    --sidebar: #1E325C;
+    --sidebar-foreground: #FFFFFF;
+    --sidebar-primary: #FFBC1F;
+    --sidebar-primary-foreground: #1E325C;
+    --sidebar-accent: #2a4175;
+    --sidebar-accent-foreground: #FFFFFF;
+    --sidebar-border: #2a4175;
+    --sidebar-ring: #FFBC1F;
+}
+
+.dark {
+    --background: #1B1D22;
+    --foreground: #f8fafc;
+    --card: #202329;
+    --card-foreground: #f8fafc;
+    --popover: #202329;
+    --popover-foreground: #f8fafc;
+    --primary: #FFBC1F;
+    --primary-foreground: #1E325C;
+    --secondary: #2a4175;
+    --secondary-foreground: #f8fafc;
+    --muted: #2a4175;
+    --muted-foreground: #94a3b8;
+    --accent: #2a4175;
+    --accent-foreground: #FFBC1F;
+    --destructive: #ef4444;
+    --destructive-foreground: #ffffff;
+    --border: #2a4175;
+    --input: #2a4175;
+    --ring: #FFBC1F;
+    --font-weight-medium: 500;
+    --font-weight-normal: 400;
+    --chart-1: #FFBC1F;
+    --chart-2: #3b82f6;
+    --chart-3: #f59e0b;
+    --chart-4: #ef4444;
+    --chart-5: #8b5cf6;
+    --sidebar: #1B1D22;
+    --sidebar-foreground: #FFFFFF;
+    --sidebar-primary: #FFBC1F;
+    --sidebar-primary-foreground: #1E325C;
+    --sidebar-accent: #202329;
+    --sidebar-accent-foreground: #FFFFFF;
+    --sidebar-border: #2a4175;
+    --sidebar-ring: #FFBC1F;
+}
+
+@theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-input-background: var(--input-background);
+    --color-switch-background: var(--switch-background);
+    --color-ring: var(--ring);
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+    --radius-sm: calc(var(--radius) - 4px);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) + 4px);
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+    * {
+        @apply border-border outline-ring/50;
+    }
+
+    body {
+        @apply bg-background text-foreground;
+    }
+}
+
+/**
+ * Base typography. This is not applied to elements which have an ancestor with a Tailwind text class.
+ */
+@layer base {
+    :where(:not(:has([class*=" text-"]), :not(:has([class^="text-"])))) {
+        h1 {
+            font-size: var(--text-2xl);
+            font-weight: var(--font-weight-medium);
+            line-height: 1.5;
+        }
+
+        h2 {
+            font-size: var(--text-xl);
+            font-weight: var(--font-weight-medium);
+            line-height: 1.5;
+        }
+
+        h3 {
+            font-size: var(--text-lg);
+            font-weight: var(--font-weight-medium);
+            line-height: 1.5;
+        }
+
+        h4 {
+            font-size: var(--text-base);
+            font-weight: var(--font-weight-medium);
+            line-height: 1.5;
+        }
+
+        p {
+            font-size: var(--text-base);
+            font-weight: var(--font-weight-normal);
+            line-height: 1.5;
+        }
+
+        label {
+            font-size: var(--text-base);
+            font-weight: var(--font-weight-medium);
+            line-height: 1.5;
+        }
+
+        button {
+            font-size: var(--text-base);
+            font-weight: var(--font-weight-medium);
+            line-height: 1.5;
+        }
+
+        input {
+            font-size: var(--text-base);
+            font-weight: var(--font-weight-normal);
+            line-height: 1.5;
+        }
+    }
+}
+
+html {
+    font-size: var(--font-size);
+}
+
+/* Sidebar animations */
+@keyframes activeIndicator {
+    0% {
+        transform: scale(0.8);
+        opacity: 0.5;
+    }
+
+    50% {
+        transform: scale(1.1);
+        opacity: 1;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 0.8;
+    }
+}
+
+.active-indicator {
+    animation: activeIndicator 2s ease-in-out infinite;
+}
+
+/* Smooth expand animation */
+.sidebar-expand {
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Apple-Style Smooth Animations */
+@layer utilities {
+    .apple-bezier {
+        transition-duration: 0.4s;
+        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .animate-apple-modal {
+        animation: appleModal 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+
+    .animate-apple-fade {
+        animation: appleFade 0.3s ease-out forwards;
+    }
+
+    .animate-apple-slide-up {
+        animation: appleSlideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+
+    .animate-apple-slide-right {
+        animation: appleSlideRight 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+
+    /* Springy interaction for buttons */
+    .apple-spring {
+        transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .hover-apple-scale {
+        @apply hover:scale-[1.03] active:scale-95 transition-transform duration-200;
+        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .animate-shake {
+        animation: appleShake 0.4s cubic-bezier(.36, .07, .19, .97) both;
+    }
+}
+
+@keyframes appleShake {
+
+    10%,
+    90% {
+        transform: translate3d(-1px, 0, 0);
+    }
+
+    20%,
+    80% {
+        transform: translate3d(2px, 0, 0);
+    }
+
+    30%,
+    50%,
+    70% {
+        transform: translate3d(-4px, 0, 0);
+    }
+
+    40%,
+    60% {
+        transform: translate3d(4px, 0, 0);
+    }
+}
+
+@keyframes appleModal {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+@keyframes appleFade {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes appleSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes appleSlideRight {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Responsive transitions for list items */
+.stagger-item {
+    opacity: 0;
+    animation: appleFadeInUp 0.5s ease forwards;
+}
+
+@keyframes appleFadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
