@@ -1,9 +1,18 @@
-sqlalchemy
-psycopg2-binary
-pgvector
-pandas
-numpy
+# [공통] 서버 및 API 통신
+fastapi
+uvicorn
 requests
 aiohttp
 python-dotenv
+httpx
+pydantic
+
+# [파이프라인 전용] 데이터 처리 및 DB
+pandas
+sqlalchemy
+psycopg2-binary
+pgvector
+numpy
+
+# [기타 유틸리티]
 urllib3
