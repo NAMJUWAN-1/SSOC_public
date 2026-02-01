@@ -42,7 +42,7 @@ export default function Pagination(props) {
           onClick={() => onPageChange?.(p)}
           className={[
             "w-8 h-8 rounded-lg text-xs font-bold transition-all",
-            currentPage === p ? "bg-blue-600 text-white shadow-md" : "text-slate-500 hover:bg-slate-100",
+            currentPage === p ? "bg-[#1E325C] text-white shadow-md" : "text-slate-500 hover:bg-slate-100",
           ].join(" ")}
         >
           {p}

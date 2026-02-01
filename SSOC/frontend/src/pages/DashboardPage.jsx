@@ -46,9 +46,18 @@ export default function DashboardPage() {
     categoryRef.current = selectedCategory;
   }, [selectedCategory]);
 
+  // Real-time search: Debounce queryInput into query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setQuery(queryInput);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [queryInput]);
+
   // ---- Data state ----
   const [scopePosts, setScopePosts] = useState([]); // channel scope without category
   const [posts, setPosts] = useState([]); // final list (maybe category-filtered)
+  const [rankingPosts, setRankingPosts] = useState([]); // fixed ranking independent of filters
   const [loading, setLoading] = useState(false);
 
   // ---- Build board/channel tree from backend user profile ----
@@ -178,6 +187,28 @@ export default function DashboardPage() {
     };
   }, [state.auth.isAuthenticated, channelScopeKey]);
 
+  // Ranking fetch (Global/All Channels) - Independent of filters
+  useEffect(() => {
+    let alive = true;
+    const run = async () => {
+      if (!state.auth.isAuthenticated || allUserChannelIds.length === 0) return;
+      try {
+        const params = new URLSearchParams();
+        params.set("channel_id", allUserChannelIds.join(","));
+        const res = await fetchWithAuth(apiUrl(`/api/posts/?${params.toString()}`), { method: "GET" });
+        if (!res.ok) throw new Error("ranking fetch failed");
+        const data = await res.json();
+        if (!alive) return;
+        setRankingPosts(Array.isArray(data) ? data : []);
+      } catch (e) {
+        if (!alive) return;
+        console.error("[ranking] fetch error:", e);
+      }
+    };
+    run();
+    return () => { alive = false; };
+  }, [state.auth.isAuthenticated, allUserChannelIds.join(",")]);
+
   // Fetch display posts using backend-side filters/search (vector search ready)
   // - when query is committed, always request from backend
   // - when category is selected, request from backend
@@ -200,14 +231,20 @@ export default function DashboardPage() {
         const params = new URLSearchParams();
         if (channelScopeIds.length > 0) params.set("channel_id", channelScopeIds.join(","));
         if (selectedCategory) params.set("category_id", String(selectedCategory));
-        if (hasQuery) params.set("q", query.trim());
+        if (hasQuery) params.set("keyword", query.trim());
 
         const res = await fetchWithAuth(apiUrl(`/api/posts/?${params.toString()}`), { method: "GET" });
         if (!res.ok) throw new Error(`posts fetch failed (${res.status})`);
         const data = await res.json();
 
         if (!alive) return;
-        setPosts(Array.isArray(data) ? data : []);
+        let list = Array.isArray(data) ? data : [];
+        if (hasQuery) {
+          // Backend handles pgvector search. No strict client-side string filter needed
+          // to allow for semantic matches (e.g. searching 'dinner' finds 'meal').
+          list = Array.isArray(data) ? data : [];
+        }
+        setPosts(list);
       } catch (e) {
         if (!alive) return;
         setPosts([]);
@@ -292,103 +329,93 @@ export default function DashboardPage() {
       const res = await fetchWithAuth(apiUrl(`/api/posts/?post_id=${encodeURIComponent(pid)}`), { method: "GET" });
       if (!res.ok) throw new Error("detail fetch failed");
       const data = await res.json();
-      actions.openPostDetailFromPost(data || post);
+      // Merge: preserve IDs from list item if they are missing in the detail response
+      actions.openPostDetailFromPost(data ? { ...post, ...data } : post);
     } catch {
       actions.openPostDetailFromPost(post);
     }
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-8 py-12">
-      {/* 최근 공지 */}
+    <div className="space-y-6">
+
+      {/* Ranking Section */}
       <RankingCarousel
-        posts={scopePosts.slice(0, 5)}
+        posts={rankingPosts.slice(0, 5)}
         onOpen={onOpenPost}
-        title="최근 공지 TOP 5"
       />
 
-      <div className="mt-10 flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-black text-slate-900 tracking-tighter">
-          <span className="w-1.5 h-6 bg-emerald-500 rounded-full inline-block mr-3 align-middle" />
-          전체 공지사항
-        </h2>
+      {/* Main Notice Section */}
+      <section className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <h2 className="text-3xl font-black text-slate-900 tracking-tighter flex items-center">
+            <span className="w-1.5 h-6 bg-[#FFBC1F] rounded-full mr-3" />
+            전체 공지사항
+          </h2>
 
-        <div className="flex items-center gap-3">
-          <div className="w-[320px] hidden sm:block">
-            <SearchWithHistory
-              value={queryInput}
-              onChange={(v) => {
-                setQueryInput(v);
-                // UX: if user clears input, reset committed query immediately
-                if (!v) setQuery("");
-              }}
-              onSearch={(t) => {
-                setQueryInput(t);
-                setQuery(t);
-              }}
-              placeholder="공지사항 검색..."
-              historyMode="backend"
+          <div className="flex items-center gap-3">
+            <div className="flex-1 md:w-[280px]">
+              <div className="relative group">
+                <SearchWithHistory
+                  value={queryInput}
+                  onChange={(v) => {
+                    setQueryInput(v);
+                    if (!v) setQuery("");
+                  }}
+                  onSearch={(t) => {
+                    setQueryInput(t);
+                    setQuery(t);
+                  }}
+                  placeholder="공지사항 검색..."
+                  historyMode="backend"
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={() => setFilterOpen((v) => !v)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-200 shadow-sm hover:shadow transition-all group"
+            >
+              <Filter size={18} className="text-slate-400 group-hover:text-[#1E325C]" />
+              <span className="text-sm font-black text-slate-600 group-hover:text-[#1E325C]">필터</span>
+            </button>
+          </div>
+        </div>
+
+        <BoardChannelFilter
+          open={filterOpen}
+          boards={boards}
+          categories={categories}
+          showCategory={(selectedChannels?.length ?? 0) === 1}
+          selectedBoard={selectedBoard}
+          selectedChannels={selectedChannels}
+          selectedCategory={selectedCategory}
+          onSelectBoard={onSelectBoard}
+          onToggleChannel={onToggleChannel}
+          onSelectCategory={onSelectCategory}
+          onReset={onReset}
+        />
+
+        <div className="mt-8 bg-slate-50/50 rounded-[2rem] p-6 space-y-4">
+          <PostList
+            items={pageItems}
+            loading={loading}
+            onOpen={onOpenPost}
+            showArchiveButton={true}
+            archivesSet={state.archives}
+            onToggleArchive={actions.toggleArchive}
+            showArchiveConfirm={(postId) => actions.openConfirm("unarchive", { postId })}
+          />
+
+          <div className="mt-10 flex justify-center">
+            <Pagination
+              page={pageSafe}
+              totalPages={totalPages}
+              onPageChange={(p) => setPage(p)}
             />
           </div>
-
-          <button
-            onClick={() => setFilterOpen((v) => !v)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-200 shadow-sm hover:shadow transition"
-          >
-            <Filter size={18} className="text-slate-500" />
-            <span className="text-sm font-black text-slate-700">필터</span>
-          </button>
         </div>
-      </div>
-
-      {/* Mobile search */}
-      <div className="sm:hidden mb-4">
-        <SearchWithHistory
-          value={queryInput}
-          onChange={(v) => {
-            setQueryInput(v);
-            if (!v) setQuery("");
-          }}
-          onSearch={(t) => {
-            setQueryInput(t);
-            setQuery(t);
-          }}
-          placeholder="공지사항 검색..."
-          historyMode="backend"
-        />
-      </div>
-
-      <BoardChannelFilter
-        open={filterOpen}
-        boards={boards}
-        categories={categories}
-        // category is per-channel in backend: only show when exactly one channel is selected
-        showCategory={(selectedChannels?.length ?? 0) === 1}
-        selectedBoard={selectedBoard}
-        selectedChannels={selectedChannels}
-        selectedCategory={selectedCategory}
-        onSelectBoard={onSelectBoard}
-        onToggleChannel={onToggleChannel}
-        onSelectCategory={onSelectCategory}
-        onReset={onReset}
-      />
-
-      <div className="mt-6">
-        <PostList
-          items={pageItems}
-          loading={loading}
-          onOpen={onOpenPost}
-          showArchiveButton={false}
-        />
-
-        <div className="mt-6 flex justify-center">
-          <Pagination
-            page={pageSafe}
-            totalPages={totalPages}
-            onPageChange={(p) => setPage(p)}
-          />
-        </div>
-      </div>
+      </section>
     </div>
   );
 }

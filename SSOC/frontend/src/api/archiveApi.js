@@ -27,10 +27,10 @@ async function requireOk(res, fallbackMsg) {
  * body: { post_id }
  */
 export async function createArchive({ user_id, post_id }) {
-  const res = await fetchWithAuth(apiUrl(`/api/users/${encodeURIComponent(user_id)}/archives`), {
+  const res = await fetchWithAuth(apiUrl(`/api/archives/`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ post_id }),
+    body: JSON.stringify({ user_id, post_id }),
   });
   await requireOk(res, "아카이브 생성에 실패했습니다.");
   return await res.json();
@@ -42,7 +42,7 @@ export async function createArchive({ user_id, post_id }) {
  */
 export async function deleteArchive({ user_id, archive_id }) {
   const res = await fetchWithAuth(
-    apiUrl(`/api/users/${encodeURIComponent(user_id)}/archives/${encodeURIComponent(archive_id)}`),
+    apiUrl(`/api/archives/${encodeURIComponent(archive_id)}/`),
     { method: "DELETE" }
   );
   await requireOk(res, "아카이브 삭제에 실패했습니다.");
@@ -56,7 +56,7 @@ export async function deleteArchive({ user_id, archive_id }) {
 export async function listMyArchives({ user_id }) {
   const qs = new URLSearchParams();
   if (user_id != null) qs.set("user_id", String(user_id));
-  const res = await fetchWithAuth(apiUrl(`/api/archives?${qs.toString()}`), { method: "GET" });
+  const res = await fetchWithAuth(apiUrl(`/api/archives/?${qs.toString()}`), { method: "GET" });
   await requireOk(res, "아카이브 목록을 불러오지 못했습니다.");
   const data = await res.json();
   return Array.isArray(data) ? data : [];

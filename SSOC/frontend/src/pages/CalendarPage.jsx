@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { useApp } from "../state/AppProvider";
 import CalendarMonth from "../components/calendar/CalendarMonth";
 
@@ -17,24 +17,55 @@ export default function CalendarPage() {
   }, [currentDate]);
 
   return (
-    <div className="p-4 md:p-10 max-w-7xl mx-auto space-y-6">
-      <div className="flex justify-end">
-        <button
-          onClick={() => actions.openCalendarEventCreateManual()}
-          className="flex items-center px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-black shadow-lg hover:bg-slate-800 transition-all active:scale-95"
-        >
-          <Plus size={16} className="mr-2" /> 일정 추가
-        </button>
+    <div className="space-y-6">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between px-4 gap-4">
+        <h2 className="text-3xl font-black text-slate-900 tracking-tighter flex items-center">
+          <span className="w-1.5 h-6 bg-[#FFBC1F] rounded-full mr-3" />
+          캘린더
+        </h2>
+
+        <div className="flex items-center gap-4">
+          {/* Month Navigation (Moved from CalendarMonth to here for better layout control) */}
+          <div className="bg-white rounded-xl px-4 py-2 border border-slate-100 flex items-center gap-4 shadow-sm">
+            <button
+              onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))}
+              className="p-1 text-slate-400 hover:text-[#1E325C] transition-colors"
+            >
+              <ChevronLeft size={20} strokeWidth={2.5} />
+            </button>
+            <span className="text-sm font-black text-slate-700 min-w-[100px] text-center">
+              {currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월
+            </span>
+            <button
+              onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))}
+              className="p-1 text-slate-400 hover:text-[#1E325C] transition-colors"
+            >
+              <ChevronRight size={20} strokeWidth={2.5} />
+            </button>
+          </div>
+
+          <button
+            onClick={() => actions.openCalendarEventCreateManual()}
+            className="flex items-center px-6 py-3 bg-[#1E325C] text-white rounded-xl text-sm font-black shadow-lg shadow-blue-900/10 hover:brightness-110 transition-all active:scale-95 group"
+          >
+            <Plus size={18} className="mr-2 stroke-[3]" /> 일정 등록
+          </button>
+        </div>
       </div>
 
-      <CalendarMonth
-        currentDate={currentDate}
-        setCurrentDate={setCurrentDate}
-        events={state.calendarEvents}
-        expandedWeek={expandedWeek}
-        setExpandedWeek={setExpandedWeek}
-        onOpenEvent={(ev) => actions.openPostDetailFromEvent(ev)}
-      />
+      {/* Main Calendar Card */}
+      <section className="bg-white rounded-[2rem] p-4 md:p-8 shadow-sm border border-slate-100">
+        <CalendarMonth
+          currentDate={currentDate}
+          setCurrentDate={setCurrentDate}
+          events={state.calendarEvents}
+          expandedWeek={expandedWeek}
+          setExpandedWeek={setExpandedWeek}
+          onOpenEvent={(ev) => actions.openPostDetailFromEvent(ev)}
+          hideHeader={true} // New prop to hide internal header
+        />
+      </section>
     </div>
   );
 }

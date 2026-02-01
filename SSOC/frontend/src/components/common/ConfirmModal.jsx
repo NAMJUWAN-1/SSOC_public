@@ -1,5 +1,5 @@
 import React from "react";
-import { AlertTriangle, LogOut, BookmarkMinus, Trash2 } from "lucide-react";
+import { AlertTriangle, LogOut, BookmarkMinus, Trash2, CheckCircle2 } from "lucide-react";
 import ModalBase from "./ModalBase";
 import { useApp } from "../../state/AppProvider";
 
@@ -43,6 +43,36 @@ export default function ConfirmModal({ type, payload }) {
         confirmClass: "bg-red-600 hover:bg-red-700 text-white",
       };
     }
+    if (type === "event_success") {
+      return {
+        icon: <CheckCircle2 size={28} className="text-green-600" />,
+        title: "일정 등록 완료",
+        desc: "새로운 일정이 캘린더에 성공적으로 등록되었습니다.",
+        confirmText: "확인",
+        confirmClass: "bg-[#1E325C] hover:bg-[#2a457a] text-white",
+        isAlert: true,
+      };
+    }
+    if (type === "event_update_success") {
+      return {
+        icon: <CheckCircle2 size={28} className="text-green-600" />,
+        title: "일정 수정 완료",
+        desc: "일정 정보가 성공적으로 업데이트되었습니다.",
+        confirmText: "확인",
+        confirmClass: "bg-[#1E325C] hover:bg-[#2a457a] text-white",
+        isAlert: true,
+      };
+    }
+    if (type === "profile_success") {
+      return {
+        icon: <CheckCircle2 size={28} className="text-green-600" />,
+        title: "프로필 수정 완료",
+        desc: "프로필 정보가 성공적으로 변경되었습니다.",
+        confirmText: "확인",
+        confirmClass: "bg-[#1E325C] hover:bg-[#2a457a] text-white",
+        isAlert: true,
+      };
+    }
 
     return {
       icon: <AlertTriangle size={28} className="text-red-600" />,
@@ -67,12 +97,16 @@ export default function ConfirmModal({ type, payload }) {
     if (type === "delete_event") {
       actions.deleteCalendarEvent(payload.eventId);
       actions.closeConfirm();
-      actions.closePostDetail();
+      actions.closeCalendarEvent();
       return;
     }
     if (type === "delete_account") {
       actions.closeConfirm();
       actions.deleteAccount();
+      return;
+    }
+    if (type === "event_success" || type === "event_update_success" || type === "profile_success") {
+      actions.closeConfirm();
       return;
     }
     // Fallback: unknown confirm type -> show placeholder instead of silent no-op
@@ -89,12 +123,14 @@ export default function ConfirmModal({ type, payload }) {
         <p className="text-slate-500 text-sm leading-relaxed mb-6">{config.desc}</p>
 
         <div className="flex gap-3">
-          <button
-            onClick={actions.closeConfirm}
-            className="flex-1 py-3 rounded-xl font-bold bg-slate-100 text-slate-700 hover:bg-slate-200"
-          >
-            취소
-          </button>
+          {!config.isAlert && (
+            <button
+              onClick={actions.closeConfirm}
+              className="flex-1 py-3 rounded-xl font-bold bg-slate-100 text-slate-700 hover:bg-slate-200"
+            >
+              취소
+            </button>
+          )}
           <button onClick={onConfirm} className={`flex-1 py-3 rounded-xl font-black ${config.confirmClass}`}>
             {config.confirmText}
           </button>
