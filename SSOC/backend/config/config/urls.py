@@ -27,5 +27,4 @@ urlpatterns = [
     path("api/search-logs/", include("local_apps.search_logs.urls")),
     path("api/posts/", include("local_apps.posts.urls")),
     path("api/archives/", include("local_apps.archives.urls")),
-    path("api/calendar-events/", include("local_apps.calendar_events.urls")),
 ]
