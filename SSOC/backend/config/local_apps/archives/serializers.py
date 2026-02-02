@@ -20,7 +20,6 @@ class ArchivePostSerializer(serializers.ModelSerializer):
             'channel_id', 
             'channel_name', 
             'ai_title', 
-            'display_content',
             'posted_at'
         ]
 

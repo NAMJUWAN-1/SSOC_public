@@ -7,9 +7,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.db.models import Q
+from django.db.models import Q, Exists, OuterRef
 
 from local_apps.posts.models import Post
+from local_apps.archives.models import Archive
 
 
 # .env 경로 설정 및 로드
@@ -128,6 +129,15 @@ class PostAPIView(APIView):
             "category"
         )
 
+        # Archive 여부 체크 (현재 유저가 이 Post를 북마크했는지)
+        is_archived_subquery = Archive.objects.filter(
+            post=OuterRef('pk'), # "바깥쪽 Post의 ID와 같고"
+            user=request.user # "현재 유저가 북마크한 Archive 레코드"
+        )
+        user_posts = user_posts.annotate(
+            is_archived=Exists(is_archived_subquery)
+        )
+
         # 필터 1: board_id
         board_id = request.GET.get("board_id")
         if board_id:
@@ -221,9 +231,9 @@ class PostAPIView(APIView):
                 "channel_id": post.channel_id,
                 "channel_name": post.channel.channel_name,
                 "ai_title": post.ai_title,
-                "display_content": post.display_content,
                 "content": post.content,
                 "posted_at": post.posted_at.isoformat() if post.posted_at else None,
+                "is_archived": post.is_archived,  # 북마크 상태
             })
 
         return Response(data, status=status.HTTP_200_OK)
