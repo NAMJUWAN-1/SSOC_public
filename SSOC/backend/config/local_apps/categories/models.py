@@ -1,5 +1,6 @@
 from django.db import models
 from local_apps.channels.models import Channel
+from pgvector.django import VectorField
 
 
 class Category(models.Model):
@@ -17,6 +18,9 @@ class Category(models.Model):
     )
 
     category_name = models.CharField(max_length=50, db_column="category_name")
+
+    # 임베딩 벡터 (Vector, nullable, 1536 dimensions)
+    embedding_vector = VectorField(dimensions=1536, null=True, blank=True, db_column="embedding_vector")
 
     class Meta:
         db_table = "category"
