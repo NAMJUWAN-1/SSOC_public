@@ -208,7 +208,7 @@ export default function PostDetailModal({
             </button>
           )}
 
-          {link && (
+          {link ? (
             <a
               href={link}
               target="_blank"
@@ -217,7 +217,7 @@ export default function PostDetailModal({
             >
               Mattermost에서 보기 <ExternalLink size={18} className="ml-2" />
             </a>
-          )}
+          ) : null}
         </div>
       </div>
     </ModalBase>

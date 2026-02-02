@@ -380,6 +380,7 @@ export default function DashboardPage() {
               <span className="text-sm font-black text-slate-600 group-hover:text-[#1E325C]">필터</span>
             </button>
           </div>
+
         </div>
 
         <BoardChannelFilter
@@ -415,7 +416,7 @@ export default function DashboardPage() {
             />
           </div>
         </div>
-      </section>
-    </div>
+      </section >
+    </div >
   );
 }
