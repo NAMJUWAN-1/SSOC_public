@@ -55,6 +55,7 @@ class PostAPIView(APIView):
 
         data = {
             "post_id": post.post_id,
+            "mm_post_id": post.mm_post_id,
             "board_name": post.channel.board.board_name,
             "channel_name": post.channel.channel_name,
             "category_name": post.category.category_name,
