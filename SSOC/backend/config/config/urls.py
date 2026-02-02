@@ -25,4 +25,5 @@ urlpatterns = [
     path("api/users/", include("local_apps.users.urls")),
     path("api/channels/", include("local_apps.channels.urls")),
     path("api/search-logs/", include("local_apps.search_logs.urls")),
+    path("api/posts/", include("local_apps.posts.urls")),
 ]
