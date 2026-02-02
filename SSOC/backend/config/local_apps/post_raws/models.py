@@ -34,6 +34,9 @@ class PostRaw(models.Model):
     # ERD: update_at (timestamp)
     update_at = models.DateTimeField()
 
+    # 처리 여부 (Boolean, default=False)
+    is_processed = models.BooleanField(default=False, db_column="is_processed")
+
     class Meta:
         db_table = "post_raw"
         verbose_name = "Post Raw"
