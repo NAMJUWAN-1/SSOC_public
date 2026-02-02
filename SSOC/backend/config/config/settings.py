@@ -73,7 +73,6 @@ INSTALLED_APPS = [
     "local_apps.posts",
     "local_apps.search_logs",
     "local_apps.archives",
-    "local_apps.calendar_events",
 ]
 
 MIDDLEWARE = [
