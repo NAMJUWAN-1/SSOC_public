@@ -7,46 +7,11 @@ from django.shortcuts import get_object_or_404
 from django.db import IntegrityError
 
 from .models import Archive
-from .serializers import ArchiveSerializer, ArchiveRankingSerializer
+from .serializers import ArchiveSerializer
 from local_apps.posts.models import Post
 from django.contrib.auth import get_user_model
-from django.db.models import Count
-from django.utils import timezone
-from datetime import timedelta
 
 User = get_user_model()
-
-class ArchiveRankingView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request: Request) -> Response:
-        """
-        실시간 아카이빙 랭킹 조회
-        GET /api/archives/ranking/
-        
-        Logic:
-        - 최근 7일(Moving Window) 동안 생성된 아카이브 집계
-        - 아카이브 수(scrap_count) 기준 내림차순 정렬
-        - 상위 10개 반환
-        """
-        now = timezone.now()
-        start_date = now - timedelta(days=7)
-
-        # Post를 기준으로 Archive 수 카운트 (최근 7일 데이터만)
-        # filter(archives__created_at__gte=start_date) : 역참조 이용
-        # 스크랩수가 같은 경우 posted_at 기준 내림차순 정렬
-        top_posts = Post.objects.filter(
-            archives__created_at__gte=start_date
-        ).annotate(
-            scrap_count=Count('archives')
-        ).order_by('-scrap_count', '-posted_at')[:10]
-
-        # 데이터가 없을 경우 처리 (빈 리스트 반환)
-        if not top_posts:
-            return Response([], status=status.HTTP_200_OK)
-
-        serializer = ArchiveRankingSerializer(top_posts, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
 
 class ArchiveView(APIView):
     permission_classes = [IsAuthenticated]
