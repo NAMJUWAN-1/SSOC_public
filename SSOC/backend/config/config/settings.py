@@ -58,6 +58,9 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",  # DB 저장/무효화(blacklist)
 
+    # pgvector for vector similarity search
+    "pgvector",
+
     # local_apps
     "local_apps.users",
     "local_apps.oauth_accounts",
@@ -69,6 +72,7 @@ INSTALLED_APPS = [
     "local_apps.categories",
     "local_apps.posts",
     "local_apps.search_logs",
+    "local_apps.archives",
 ]
 
 MIDDLEWARE = [
