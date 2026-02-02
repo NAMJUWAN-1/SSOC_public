@@ -29,12 +29,3 @@ class ArchiveSerializer(serializers.ModelSerializer):
     class Meta:
         model = Archive
         fields = ['archive_id', 'user', 'post', 'created_at']
-
-class ArchiveRankingSerializer(ArchivePostSerializer):
-    """
-    랭킹 조회용 시리얼라이저 (스크랩 수 포함)
-    """
-    scrap_count = serializers.IntegerField(read_only=True)
-
-    class Meta(ArchivePostSerializer.Meta):
-        fields = ArchivePostSerializer.Meta.fields + ['scrap_count']
