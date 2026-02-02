@@ -49,7 +49,7 @@ def merge_messages(df):
         
         channel_id=('channel_id', 'first'),
         # 메시지 사이를 줄바꿈(\n)으로 연결하여 하나의 본문 생성
-        content=('raw_content', lambda x: "\n".join(x.astype(str))),
+        content=('raw_content', lambda x: "\n\n".join(x.astype(str))),
         posted_at=('posted_at', 'first'),      # 공지 시작 시간 (그룹 내 첫 메시지)
         last_posted_at=('posted_at', 'last'), # 안전선 필터링 기준 시간 (그룹 내 마지막 메시지)
         
