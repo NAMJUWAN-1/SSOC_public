@@ -72,7 +72,6 @@ INSTALLED_APPS = [
     "local_apps.categories",
     "local_apps.posts",
     "local_apps.search_logs",
-    "local_apps.archives",
 ]
 
 MIDDLEWARE = [
