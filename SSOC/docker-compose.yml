@@ -6,17 +6,15 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: backend
-    restart: on-failure
+    container_name: ssoc-backend
+    restart: always
     ports:
       - "18000:8000"
     environment:
-      # Django settings.py에서 사용할 환경 변수들
       SECRET_KEY: "django-insecure-secret-key-for-dev"
       DEBUG: "True"
-      
-      # 도커 내부 통신용 AI 서비스 주소
-      AI_SERVICE_URL: "http://ai:8001" 
+      DB_HOST: "ssafy_db"
+      AI_SERVICE_URL: "http://data-webhook:8001" # 필요 시 참조
     networks:
       - ssoc-network
 
@@ -25,34 +23,47 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: frontend
-    restart: on-failure
+    container_name: ssoc-frontend
+    restart: always
     ports:
       - "15173:5173"
     environment:
-      # 브라우저(Host)에서 백엔드 API를 호출할 때 사용하는 주소
-      VITE_API_URL: http://localhost:8000
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules # 로컬 node_modules 덮어쓰기 방지
+      VITE_API_URL: https://i14b209.p.ssafy.io/api
+    # volumes:
+    #   - ./frontend:/app
+    #   - /app/node_modules
     networks:
       - ssoc-network
 
-  # 3. AI 서비스 (FastAPI)
-  ai:
+  # 3. 데이터 수집기
+  data-webhook:
     build:
-      context: ./ai  # 폴더명 'ai' 확인
+      context: ./AI
       dockerfile: Dockerfile
-    container_name: ai
-    restart: on-failure
+    container_name: ssoc-data-webhook
+    restart: always
+    env_file:
+      - ./AI/.env
     ports:
-      - "18001:8001"
+      - "18001:8001" # Dockerfile의 EXPOSE 8001 포트와 연결
+    networks:
+      - ssoc-network
+
+  # 4. AI 분석 파이프라인
+  ai-pipeline:
+    build:
+      context: ./AI
+      dockerfile: Dockerfile
+    container_name: ssoc-ai-pipeline
+    restart: always
+    env_file:
+      - ./AI/.env
+    command: python db_pipeline.py
     environment:
-      # GMS 사용을 위한 API Key (.env 파일에서 로드)
-      GMS_KEY: ${GMS_KEY}
+      - PYTHONUNBUFFERED=1 # 실시간 로그 출력
     networks:
       - ssoc-network
 
 networks:
   ssoc-network:
-    driver: bridge
+    external: true

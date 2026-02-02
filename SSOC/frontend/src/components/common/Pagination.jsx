@@ -1,9 +1,22 @@
 import React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-export default function Pagination({ totalItems, itemsPerPage, currentPage, onPageChange }) {
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  if (totalPages <= 1) return null;
+/**
+ * Pagination
+ * - Legacy props: { totalItems, itemsPerPage, currentPage, onPageChange }
+ * - New props:    { page, totalPages, onPageChange }
+ */
+export default function Pagination(props) {
+  const currentPage = props.currentPage ?? props.page ?? 1;
+  const onPageChange = props.onPageChange;
+
+  const totalPages = props.totalPages ?? (() => {
+    const totalItems = props.totalItems ?? 0;
+    const itemsPerPage = props.itemsPerPage ?? 10;
+    return Math.ceil(totalItems / itemsPerPage);
+  })();
+
+  if (!totalPages || totalPages <= 1) return null;
 
   const maxVisible = 5;
   let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
@@ -16,7 +29,7 @@ export default function Pagination({ totalItems, itemsPerPage, currentPage, onPa
   return (
     <div className="flex justify-center items-center space-x-2 py-4">
       <button
-        onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+        onClick={() => onPageChange?.(Math.max(1, currentPage - 1))}
         disabled={currentPage === 1}
         className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-30"
       >
@@ -26,10 +39,10 @@ export default function Pagination({ totalItems, itemsPerPage, currentPage, onPa
       {pages.map((p) => (
         <button
           key={p}
-          onClick={() => onPageChange(p)}
+          onClick={() => onPageChange?.(p)}
           className={[
             "w-8 h-8 rounded-lg text-xs font-bold transition-all",
-            currentPage === p ? "bg-blue-600 text-white shadow-md" : "text-slate-500 hover:bg-slate-100",
+            currentPage === p ? "bg-[#1E325C] text-white shadow-md" : "text-slate-500 hover:bg-slate-100",
           ].join(" ")}
         >
           {p}
@@ -37,7 +50,7 @@ export default function Pagination({ totalItems, itemsPerPage, currentPage, onPa
       ))}
 
       <button
-        onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+        onClick={() => onPageChange?.(Math.min(totalPages, currentPage + 1))}
         disabled={currentPage === totalPages}
         className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-30"
       >

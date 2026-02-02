@@ -1,10 +1,11 @@
 import React, { useMemo, useRef, useEffect } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { isSameDay, startOfDay } from "../../utils/date";
+import { getDefaultColorForCategory, makeChipStyle } from "../../utils/eventColor";
 
 const monthNames = [
-  "1월","2월","3월","4월","5월","6월",
-  "7월","8월","9월","10월","11월","12월"
+  "1월", "2월", "3월", "4월", "5월", "6월",
+  "7월", "8월", "9월", "10월", "11월", "12월"
 ];
 
 const MAX_VISIBLE_LANES = 2;
@@ -20,15 +21,6 @@ function getEventPosition(ev, date) {
   return "middle";
 }
 
-function colorClass(category) {
-  if (!category) return "bg-slate-100 text-slate-700";
-  if (category === "시험") return "bg-purple-100 text-purple-800";
-  if (category === "과제") return "bg-red-100 text-red-800";
-  if (category === "특강") return "bg-indigo-100 text-indigo-800";
-  if (category === "취업") return "bg-blue-100 text-blue-800";
-  if (category === "행사") return "bg-emerald-100 text-emerald-800";
-  return "bg-slate-100 text-slate-700";
-}
 
 export default function CalendarMonth({
   currentDate,
@@ -37,6 +29,7 @@ export default function CalendarMonth({
   expandedWeek,
   setExpandedWeek,
   onOpenEvent,
+  hideHeader = false,
 }) {
   const ref = useRef(null);
 
@@ -83,14 +76,28 @@ export default function CalendarMonth({
           return e >= weekStart && s <= weekEnd;
         })
         .sort((a, b) => {
-          const sa = startOfDay(a.startAt).getTime();
-          const sb = startOfDay(b.startAt).getTime();
+          const sa = new Date(a.startAt).getTime();
+          const sb = new Date(b.startAt).getTime();
+          const ea = new Date(a.endAt || a.startAt).getTime();
+          const eb = new Date(b.endAt || b.startAt).getTime();
+
+          // NOTE: 겹치는 일정의 "위/아래" 우선순위 규칙
+          // - 포함(완전 겹침/포함 관계): 긴 일정(범위가 더 큰 것)이 위로
+          // - 부분 겹침: 빨리 끝나는 일정이 위로
+          const overlap = sa <= eb && sb <= ea;
+          if (overlap) {
+            const aContains = sa <= sb && ea >= eb;
+            const bContains = sb <= sa && eb >= ea;
+            if (aContains && !bContains) return -1;
+            if (bContains && !aContains) return 1;
+
+            if (ea !== eb) return ea - eb; // partial overlap: earlier end first
+            if (sa !== sb) return sa - sb;
+            return String(a.id).localeCompare(String(b.id));
+          }
+
           if (sa !== sb) return sa - sb;
-
-          const ea = startOfDay(a.endAt || a.startAt).getTime();
-          const eb = startOfDay(b.endAt || b.startAt).getTime();
           if (ea !== eb) return ea - eb;
-
           return String(a.id).localeCompare(String(b.id));
         });
 
@@ -132,43 +139,43 @@ export default function CalendarMonth({
   return (
     <div
       ref={ref}
-      className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden select-none"
+      className="bg-white rounded-[2rem] overflow-hidden select-none"
     >
-      {/* 헤더 */}
-      <div className="flex justify-between items-center px-6 py-5 border-b border-slate-100">
-        <div className="flex items-center gap-4">
-          <h2 className="text-3xl font-black text-slate-900 tracking-tighter">
-            {year}년 {monthNames[month]} 일정
-          </h2>
-          <div className="flex gap-1">
+      {!hideHeader && (
+        <div className="flex justify-center items-center px-6 py-8 relative">
+          <div className="flex items-center gap-8">
             <button
               onClick={prevMonth}
-              className="p-2 rounded-full bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 shadow-sm"
+              className="p-1 text-slate-400 hover:text-[#1E325C] transition-colors"
             >
-              <ChevronLeft size={20} />
+              <ChevronLeft size={24} strokeWidth={2.5} />
             </button>
+
+            <h2 className="text-2xl font-black text-slate-900 tracking-tighter">
+              {year}년 {monthNames[month]}
+            </h2>
+
             <button
               onClick={nextMonth}
-              className="p-2 rounded-full bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 shadow-sm"
+              className="p-1 text-slate-400 hover:text-[#1E325C] transition-colors"
             >
-              <ChevronRight size={20} />
+              <ChevronRight size={24} strokeWidth={2.5} />
             </button>
           </div>
         </div>
-      </div>
+      )}
 
       {/* 요일 헤더 */}
-      <div className="grid grid-cols-7 bg-slate-50 border-b border-slate-100">
-        {["일","월","화","수","목","금","토"].map((d, i) => (
+      <div className="grid grid-cols-7 border-b border-slate-100">
+        {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((d, i) => (
           <div
             key={d}
-            className={`p-4 text-center text-xs font-black tracking-[0.2em] ${
-              i === 0
-                ? "text-red-400"
-                : i === 6
-                ? "text-blue-400"
-                : "text-slate-400"
-            }`}
+            className={`py-4 text-center text-[10px] font-bold tracking-[0.2em] uppercase ${i === 0
+              ? "text-[#FF3B30]"
+              : i === 6
+                ? "text-[#007AFF]"
+                : "text-[#8E8E93]"
+              }`}
           >
             {d}
           </div>
@@ -176,7 +183,7 @@ export default function CalendarMonth({
       </div>
 
       {/* 캘린더 바디 */}
-      <div className="flex flex-col relative">
+      <div key={currentDate.getTime()} className="flex flex-col relative animate-apple-slide-right">
         {weeks.map((week, wi) => {
           const isExpanded = expandedWeek === wi;
           const lanes = weekLanes[wi] || [];
@@ -184,9 +191,8 @@ export default function CalendarMonth({
           return (
             <div
               key={wi}
-              className={`grid grid-cols-7 border-b border-slate-100 transition-all duration-500 relative ${
-                isExpanded ? "min-h-[18rem]" : "h-32"
-              }`}
+              className={`grid grid-cols-7 border-b border-slate-100 transition-all duration-500 apple-bezier relative overflow-hidden ${isExpanded ? "h-[20rem] bg-slate-50/50 shadow-inner" : "h-32"
+                }`}
             >
               {week.map((date, di) => {
                 const today = date && isSameDay(date, new Date());
@@ -211,23 +217,23 @@ export default function CalendarMonth({
                   <div
                     key={di}
                     onClick={() => date && toggleWeek(wi)}
-                    className={`border-r border-slate-50 last:border-r-0 relative group transition-colors ${
-                      date
-                        ? "hover:bg-blue-50/30 cursor-pointer"
-                        : "bg-slate-50/30"
-                    }`}
+                    className={`border-r border-slate-50 last:border-r-0 relative group transition-all ${date
+                      ? "hover:bg-slate-50/50 cursor-pointer"
+                      : "bg-slate-50/10"
+                      }`}
                   >
                     {date && (
                       <>
                         <div
-                          className={`w-6 h-6 flex items-center justify-center text-xs font-black relative top-2 left-2 ${
-                            today ? "text-blue-600" : "text-slate-500"
-                          }`}
+                          className={`flex items-center justify-center text-sm absolute top-3 right-3 w-7 h-7 rounded-full transition-all duration-300 ${today
+                            ? "bg-[#FFBC1F] text-[#1E325C] font-black shadow-sm scale-110"
+                            : `font-medium ${di === 0 ? "text-[#FF3B30]" : di === 6 ? "text-[#007AFF]" : "text-slate-500"}`
+                            }`}
                         >
                           {date.getDate()}
                         </div>
 
-                        <div className="mt-8 space-y-1">
+                        <div className="mt-11 space-y-1">
                           {!isExpanded &&
                             lanes.slice(0, MAX_VISIBLE_LANES).map((lane, li) => {
                               const ev = lane.find((e) => {
@@ -242,7 +248,7 @@ export default function CalendarMonth({
 
                               const pos = getEventPosition(ev, date);
                               let chip =
-                                "h-5 text-[9px] font-black flex items-center px-2 truncate opacity-80";
+                                "h-5 text-[9px] font-black flex items-center px-2 truncate opacity-80 transition-all hover:brightness-105";
 
                               if (pos === "start")
                                 chip += " rounded-l-md ml-2 mr-0";
@@ -255,9 +261,11 @@ export default function CalendarMonth({
                               return (
                                 <div
                                   key={li}
-                                  className={`${chip} ${colorClass(
-                                    ev.category
-                                  )}`}
+                                  className={`${chip} border border-transparent`}
+                                  style={makeChipStyle(ev.color || getDefaultColorForCategory(ev.category), {
+                                    accentLeft: pos === "start" || pos === "single",
+                                    accentRight: pos === "end" || pos === "single",
+                                  })}
                                 >
                                   {pos === "start" || pos === "single"
                                     ? ev.title
@@ -286,7 +294,7 @@ export default function CalendarMonth({
 
                               const pos = getEventPosition(ev, date);
                               let chip =
-                                "h-5 text-[9px] font-black flex items-center px-2 truncate";
+                                "h-5 text-[9px] font-black flex items-center px-2 truncate transition-all hover:brightness-105 cursor-pointer";
 
                               if (pos === "start")
                                 chip += " rounded-l-md ml-2 mr-0";
@@ -299,9 +307,14 @@ export default function CalendarMonth({
                               return (
                                 <div
                                   key={li}
-                                  className={`${chip} ${colorClass(
-                                    ev.category
-                                  )}`}
+                                  className={`${chip} border border-transparent animate-apple-slide-up`}
+                                  style={{
+                                    ...makeChipStyle(ev.color || getDefaultColorForCategory(ev.category), {
+                                      accentLeft: pos === "start" || pos === "single",
+                                      accentRight: pos === "end" || pos === "single",
+                                    }),
+                                    animationDelay: `${li * 0.05}s`
+                                  }}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     onOpenEvent(ev);

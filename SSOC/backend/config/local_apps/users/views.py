@@ -127,11 +127,12 @@ class UserDetailView(APIView):
         
         user = authenticated_user
         
-        # 닉네임 변경 시 중복 체크 (본인 닉네임 포함, 이미 존재하면 무조건 에러)
+        # 닉네임 변경 시 중복 체크 (본인의 기존 닉네임 제외)
         if nickname:
             from django.contrib.auth import get_user_model
             User = get_user_model()
-            if User.objects.filter(nickname=nickname).exists():
+            # 본인의 현재 닉네임이 아닌 경우에만 중복 체크
+            if nickname != user.nickname and User.objects.filter(nickname=nickname).exists():
                 return Response({"error": "Nickname already exists"}, status=status.HTTP_409_CONFLICT)
             user.nickname = nickname
             

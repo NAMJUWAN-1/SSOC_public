@@ -1,4 +1,46 @@
-@import "tailwindcss";
+@import "./styles/globals.css";
 
-/* optional: 전역 기본값 */
-html, body, #root { height: 100%; }
+/* globals.css already includes tailwindcss */
+@font-face {
+    font-family: 'NanumSquareNeo';
+    src: url('/fonts/NanumSquareNeo-aLt.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+html,
+body,
+#root,
+* {
+    font-family: 'NanumSquareNeo', sans-serif !important;
+}
+
+/* Custom Scrollbar Hiding */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+@keyframes shake {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    25% {
+        transform: translateX(-5px);
+    }
+
+    75% {
+        transform: translateX(5px);
+    }
+}
+
+.animate-shake {
+    animation: shake 0.2s ease-in-out 3;
+}

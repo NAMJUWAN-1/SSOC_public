@@ -2,14 +2,14 @@
 export const LOGO_URL = "https://cdn-icons-png.flaticon.com/512/2921/2921222.png";
 
 export const AVATAR_PRESETS = [
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix",
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Aneka",
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Willow",
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Trouble",
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Bandit",
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Misty",
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Abby",
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Coco",
+  "/avatars/1.png",
+  "/avatars/2.png",
+  "/avatars/3.png",
+  "/avatars/4.png",
+  "/avatars/5.png",
+  "/avatars/6.png",
+  "/avatars/7.png",
+  "/avatars/8.png",
 ];
 
 export const MOCK_BOARDS = [

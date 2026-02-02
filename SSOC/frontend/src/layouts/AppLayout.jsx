@@ -1,54 +1,104 @@
 import React from "react";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import Sidebar from "../components/navigation/Sidebar";
+import { Outlet, useLocation, useNavigate, Navigate } from "react-router-dom";
 import { useApp } from "../state/AppProvider";
+import SideNav from "../components/navigation/SideNav";
+import Header from "../components/layout/Header";
 
 import PostDetailModal from "../components/modals/PostDetailModal";
-import EditProfileModal from "../components/modals/EditProfileModal";
+import ProfileSetupModal from "../components/modals/ProfileSetupModal";
 import CalendarEventModal from "../components/modals/CalendarEventModal";
 import ConfirmModal from "../components/common/ConfirmModal";
 
+
 export default function AppLayout() {
   const { state, actions } = useApp();
+  const { user, loading } = state;
   const nav = useNavigate();
   const loc = useLocation();
-  
-  const active = (() => {
-    if (loc.pathname.startsWith("/app/calendar")) return "calendar";
-    if (loc.pathname.startsWith("/app/mypage")) return "mypage";
-    return "home";
-  })();
 
-  const onNav = (id) => {
-    if (id === "home") return nav("/app");
-    if (id === "calendar") return nav("/app/calendar");
-    if (id === "mypage") return nav("/app/mypage");
-  };
-  
+  if (loading) return null;
+
+  if (!user) {
+    return <Navigate to="/login" state={{ from: loc }} replace />;
+  }
+
+  // Scroll to top on route change
+  React.useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [loc.pathname]);
+
+  const disableApp = state.modals.profileSetup.open;
+
   return (
-    <div className="flex min-h-screen bg-slate-50 text-slate-900 overflow-x-hidden">
-      <Sidebar
-        active={active}
-        onNavigate={onNav}
-        user={state.auth.user}
-        onLogout={() => actions.openConfirm("logout", null)}
-      />
+    <div className="min-h-screen bg-[#F0F2F5] pl-16 font-sans">
+      <div className={disableApp ? "pointer-events-none blur-sm w-full flex flex-col items-center" : "w-full flex flex-col items-center"}>
+        {/* 상단 로고 */}
+        {/* 상단 헤더 */}
+        <Header />
 
-      <main className="flex-1 ml-[70px]">
-        <div className="min-h-screen">
-          <Outlet />
-        </div>
-      </main>
+        {/* 메인 컨텐츠 영역 */}
+        <main className="w-full max-w-7xl px-4 md:px-0 pt-24 pb-32">
+          <div key={loc.pathname} className="animate-apple-slide-up">
+            <Outlet />
+          </div>
+        </main>
+
+        {/* 사이드 내비게이션 */}
+        <SideNav />
+      </div>
 
       {/* ---- Modal Root ---- */}
       {state.modals.postDetail.open && (
         <PostDetailModal
           mode={state.modals.postDetail.mode}
-          payload={state.modals.postDetail.payload}
+          payload={(() => {
+            const p = state.modals.postDetail.payload;
+            if (!p || state.modals.postDetail.mode !== "post") return p;
+
+            // Enrich with mm_board_id from user's channels if missing
+            if (!p.mm_board_id && !p.mmBoardId) {
+              const channelId = p.channel_id ?? p.channelId;
+              const boardId = p.board_id ?? p.boardId;
+              const cName = p.channel_name ?? p.channelName;
+              const bName = p.board_name ?? p.boardName;
+
+              const userChannels = state.auth.user?.channels || [];
+              const channel = userChannels.find(c =>
+                (channelId && c.channel_id === channelId) ||
+                (boardId && c.board?.board_id === boardId) ||
+                (cName && c.channel_name === cName) ||
+                (bName && c.board?.board_name === bName)
+              );
+              if (channel?.board?.mm_board_id) {
+                return { ...p, mm_board_id: channel.board.mm_board_id };
+              }
+            }
+            return p;
+          })()}
           onClose={actions.closePostDetail}
-          onRegister={(post) => actions.openCalendarEventCreateFromPost(post)}
-          onEditEvent={(ev) => actions.openCalendarEventEdit(ev)}
-          onDeleteEvent={(ev) => actions.openConfirm("delete_event", { eventId: ev.id })}
+          allowArchive={true}
+          allowCalendarAdd={true}
+          isArchived={(() => {
+            const p = state.modals.postDetail.payload;
+            const pid = p?.post_id ?? p?.id;
+            return !!pid && state.archives.has(String(pid));
+          })()}
+          onToggleArchive={(post) => {
+            const pid = post?.post_id ?? post?.id;
+            if (pid != null) actions.toggleArchive(String(pid));
+          }}
+          onAddToCalendar={(post) => {
+            actions.closePostDetail();
+            actions.openCalendarEventCreateFromPost(post);
+          }}
+          onEditEvent={(ev) => {
+            actions.closePostDetail();
+            actions.openCalendarEventEdit(ev);
+          }}
+          onDeleteEvent={(ev) => {
+            actions.closePostDetail();
+            actions.openConfirm("delete_event", { eventId: ev.id });
+          }}
         />
       )}
 
@@ -60,11 +110,25 @@ export default function AppLayout() {
         />
       )}
 
-      {state.modals.editProfile.open && (
-        <EditProfileModal
+      {state.modals.profileSetup.open && (
+        <ProfileSetupModal
           user={state.auth.user}
-          onClose={actions.closeEditProfile}
-          onSave={(u) => actions.saveProfile(u)}
+          force={!!state.modals.profileSetup.force}
+          onClose={() => {
+            if (state.modals.profileSetup.force) return;
+            actions.closeProfileSetup();
+          }}
+          onSubmit={async (u) => {
+            try {
+              await actions.saveProfile(u);
+              actions.closeProfileSetup();
+              if (state.modals.profileSetup.redirectTo) {
+                nav(state.modals.profileSetup.redirectTo, { replace: true });
+              }
+            } catch (e) {
+              alert(e?.message || "프로필 업데이트에 실패했습니다.");
+            }
+          }}
         />
       )}
 
@@ -73,6 +137,15 @@ export default function AppLayout() {
           type={state.modals.confirm.type}
           payload={state.modals.confirm.payload}
         />
+      )}
+
+      {/* global loading overlay */}
+      {state.loading && (
+        <div className="fixed inset-0 z-[999] bg-black/20 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-white rounded-2xl shadow-xl px-6 py-4 text-sm font-black text-[#1E325C] animate-pulse">
+            처리 중...
+          </div>
+        </div>
       )}
     </div>
   );
