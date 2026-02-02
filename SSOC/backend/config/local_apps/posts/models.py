@@ -50,9 +50,6 @@ class Post(models.Model):
     # ERD: display_content (varchar(100))
     display_content = models.CharField(max_length=100, null=True, blank=True)
 
-    # mm_메시지_id (varchar(100))
-    mm_post_id = models.CharField(max_length=100, null=True, blank=True)
-    
     class Meta:
         db_table = "post"
         indexes = [
