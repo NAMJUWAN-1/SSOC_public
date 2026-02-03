@@ -191,7 +191,6 @@ export default function ConfirmModal({ type, payload }) {
       actions.closeConfirm();
       return;
     }
-    // Fallback: unknown confirm type -> show placeholder instead of silent no-op
     actions.closeConfirm();
     alert("구현중입니다.");
   };

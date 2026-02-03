@@ -80,12 +80,10 @@ async function requireOk(res, fallbackMsg) {
 }
 
 function normalizeUser(raw) {
-  // backend GET /api/users/?user_id=... returns a list
   const u = Array.isArray(raw) ? raw[0] : raw;
   return {
     ...EMPTY_USER,
     ...(u || {}),
-    // enforce backend field name
     profile_image_url: (u?.profile_image_url ?? null) || null,
     nickname: u?.nickname ?? u?.name ?? "",
     channels: Array.isArray(u?.channels) ? u.channels : [],
@@ -98,9 +96,8 @@ const initialState = {
   user: { ...EMPTY_USER },
   profileCompleted: false,
 
-  // v005 호환(auth 객체)
   auth: {
-    status: "loading", // loading | ready
+    status: "loading",
     isAuthenticated: false,
     user: { ...EMPTY_USER },
   },
@@ -119,6 +116,7 @@ const initialState = {
     editProfile: { open: false },
     profileSetup: { open: false, force: false, redirectTo: null },
     confirm: { open: false, type: null, payload: null },
+    toast: { open: false, message: "" },
   },
   dashboardCache: {
     scopePosts: [],
@@ -290,6 +288,24 @@ function reducer(state, action) {
     }
     case "MODAL/CLOSE_CONFIRM": {
       return { ...state, modals: { ...state.modals, confirm: { open: false, type: null, payload: null } } };
+    }
+    case "TOAST/OPEN": {
+      return {
+        ...state,
+        modals: {
+          ...state.modals,
+          toast: { open: true, message: action.message },
+        },
+      };
+    }
+    case "TOAST/CLOSE": {
+      return {
+        ...state,
+        modals: {
+          ...state.modals,
+          toast: { open: false, message: "" },
+        },
+      };
     }
     case "DASHBOARD/SET_CACHE": {
       return {
@@ -561,12 +577,14 @@ export function AppProvider({ children }) {
     try {
       if (!wasArchived) {
         // Create
+        showToast("아카이브에 저장되었습니다.");
         const created = await createArchive({ user_id: userId, post_id: pid });
         // Since backend might not return archive_id, we MUST fetch to get it for future deletion
         // But we wait slightly to avoid race condition on server DB write
         setTimeout(() => loadMyArchives(userId), 500);
       } else {
         // Delete
+        showToast("아카이브에서 제거되었습니다.");
         let aid = prevMap[pid];
         if (!aid) {
           // Fallback: fetch list to find ID if missing
@@ -797,6 +815,13 @@ export function AppProvider({ children }) {
     dispatch({ type: "MODAL/OPEN_CONFIRM", confirmType, payload });
   const closeConfirm = () => dispatch({ type: "MODAL/CLOSE_CONFIRM" });
 
+  const showToast = (message, duration = 1000) => {
+    dispatch({ type: "TOAST/OPEN", message });
+    setTimeout(() => {
+      dispatch({ type: "TOAST/CLOSE" });
+    }, duration);
+  };
+
   const actions = useMemo(
     () => ({
       loginWithPassword,
@@ -832,9 +857,10 @@ export function AppProvider({ children }) {
       closeConfirm,
 
       setDashboardCache: (payload) => dispatch({ type: "DASHBOARD/SET_CACHE", payload }),
+      showToast,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [state.archives, state.archiveIdByPostId, state.calendarEvents, state.isAuthenticated, state.user]
+    [state.user, state.isAuthenticated, state.archives, state.modals, state.loading, state.archivedPosts, state.calendarEvents]
   );
 
   const value = useMemo(() => ({ state, actions }), [state, actions]);

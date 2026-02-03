@@ -21,7 +21,6 @@ export default function Login() {
     }
   }, [state.isAuthenticated, navigate]);
 
-  // Load saved ID
   useEffect(() => {
     const savedId = localStorage.getItem("savedLoginId");
     if (savedId) {
@@ -44,18 +43,15 @@ export default function Login() {
       setError("");
       await actions.loginWithPassword(loginId, password);
 
-      // Handle Remember ID
       if (rememberId) {
         localStorage.setItem("savedLoginId", loginId);
       } else {
         localStorage.removeItem("savedLoginId");
       }
 
-      // Let the useEffect handle redirection
     } catch (err) {
       let errorMessage = err?.message || "로그인에 실패했습니다. 아이디와 비밀번호를 확인해주세요.";
 
-      // Customize specific error messages
       if (errorMessage.includes("Invalid credentials")) {
         errorMessage = "아이디 또는 비밀번호를 확인해주세요";
       }

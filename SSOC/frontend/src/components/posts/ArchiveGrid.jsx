@@ -107,7 +107,6 @@ export default function ArchiveGrid({
                       if (showArchiveConfirm && isArchived) {
                         showArchiveConfirm(id);
                       } else {
-                        // Pass the full post object to toggleArchive
                         onToggleArchive(p);
                       }
                     }}

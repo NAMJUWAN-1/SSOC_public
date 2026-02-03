@@ -3,17 +3,6 @@ import { Clock, Search, X } from "lucide-react";
 import { useApp } from "../../state/AppProvider";
 import { clearSearchLogs, createSearchLog, deleteSearchLog, listSearchLogs } from "../../api/searchLogsApi";
 
-/**
- * SearchWithHistory
- * - historyMode:
- *   - "backend": recent keywords from backend search_logs (default)
- *   - "memory": recent keywords in memory only
- *   - "none": no dropdown
- *
- * UX 요구사항:
- * - 입력값(value)과 일치/접두(prefix)하지 않는 검색기록은 드롭다운에서 숨김
- *   예) 기록: ["a", "abc"], 입력: "ab" -> "abc"만 노출
- */
 export default function SearchWithHistory({
   value,
   onChange,
@@ -25,12 +14,11 @@ export default function SearchWithHistory({
   const { state } = useApp();
   const userId = state.auth.user?.user_id;
 
-  // Keep focus on the input even when clicking dropdown buttons (delete/clear)
   const inputRef = useRef(null);
 
   const [open, setOpen] = useState(false);
-  const [recentBackend, setRecentBackend] = useState([]); // {search_log_id, keyword}
-  const [recentMemory, setRecentMemory] = useState([]); // string[]
+  const [recentBackend, setRecentBackend] = useState([]);
+  const [recentMemory, setRecentMemory] = useState([]);
   const rootRef = useRef(null);
 
   const recent = useMemo(() => {
@@ -39,7 +27,6 @@ export default function SearchWithHistory({
     return [];
   }, [historyMode, recentBackend, recentMemory]);
 
-  // value(현재 입력) 기준으로 검색기록 필터링
   const recentShown = useMemo(() => {
     const v = (value ?? "").trim().toLowerCase();
     if (!v) return recent;
@@ -49,8 +36,7 @@ export default function SearchWithHistory({
   const loadBackend = async () => {
     if (!userId) return;
 
-    // Backend may keep duplicate keywords; UI should show unique terms only.
-    // Fetch more than `limit` to ensure we can display `limit` unique entries.
+
     const fetchLimit = Math.max(limit * 5, limit);
     const data = await listSearchLogs({ user_id: userId, limit: fetchLimit });
 
@@ -70,9 +56,7 @@ export default function SearchWithHistory({
   useEffect(() => {
     if (historyMode !== "backend") return;
     loadBackend().catch(() => {
-      // ignore (not logged in or backend not ready)
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [historyMode, userId]);
 
   useEffect(() => {
@@ -84,12 +68,10 @@ export default function SearchWithHistory({
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
-  // When the dropdown opens, refresh backend history once so UI reflects latest state
   useEffect(() => {
     if (!open) return;
     if (historyMode !== "backend") return;
-    loadBackend().catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    loadBackend().catch(() => { });
   }, [open, historyMode, userId]);
 
   const commitSearch = async (term) => {
@@ -107,7 +89,6 @@ export default function SearchWithHistory({
         await createSearchLog({ keyword: t });
         await loadBackend();
       } catch {
-        // ignore backend log error; still perform search
       }
     } else if (historyMode === "memory") {
       setRecentMemory((prev) => {
@@ -116,10 +97,8 @@ export default function SearchWithHistory({
       });
     }
 
-    // Perform the actual search
     onSearch?.(t);
 
-    // UX: immediately show updated recent history right after a search
     setOpen(true);
     queueMicrotask(() => inputRef.current?.focus());
   };
@@ -186,11 +165,10 @@ export default function SearchWithHistory({
             <button
               type="button"
               onMouseDown={(e) => {
-                // prevent input blur so the dropdown stays visible
                 e.preventDefault();
                 e.stopPropagation();
               }}
-              onClick={() => clearAll().catch(() => {})}
+              onClick={() => clearAll().catch(() => { })}
               className="text-xs font-black text-slate-400 hover:text-slate-700"
             >
               전체삭제
@@ -220,11 +198,10 @@ export default function SearchWithHistory({
                   <button
                     type="button"
                     onMouseDown={(e) => {
-                      // prevent input blur so the dropdown stays visible
                       e.preventDefault();
                       e.stopPropagation();
                     }}
-                    onClick={() => removeItem(item).catch(() => {})}
+                    onClick={() => removeItem(item).catch(() => { })}
                     className="p-1 rounded-full hover:bg-slate-100"
                   >
                     <X size={14} className="text-slate-400" />

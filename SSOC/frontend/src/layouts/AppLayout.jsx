@@ -8,6 +8,7 @@ import PostDetailModal from "../components/modals/PostDetailModal";
 import ProfileSetupModal from "../components/modals/ProfileSetupModal";
 import CalendarEventModal from "../components/modals/CalendarEventModal";
 import ConfirmModal from "../components/common/ConfirmModal";
+import Toast from "../components/common/Toast";
 
 
 export default function AppLayout() {
@@ -22,7 +23,6 @@ export default function AppLayout() {
     return <Navigate to="/login" state={{ from: loc }} replace />;
   }
 
-  // Scroll to top on route change
   React.useEffect(() => {
     window.scrollTo(0, 0);
   }, [loc.pathname]);
@@ -55,7 +55,6 @@ export default function AppLayout() {
             const p = state.modals.postDetail.payload;
             if (!p || state.modals.postDetail.mode !== "post") return p;
 
-            // Enrich with mm_board_id from user's channels if missing
             if (!p.mm_board_id && !p.mmBoardId) {
               const channelId = p.channel_id ?? p.channelId;
               const boardId = p.board_id ?? p.boardId;
@@ -84,13 +83,20 @@ export default function AppLayout() {
             const fromPayload =
               typeof p?.is_archived === "boolean" ? p.is_archived : typeof p?.isArchived === "boolean" ? p.isArchived : null;
             const fromLocal = !!pid && state.archives.has(String(pid));
-            // Prefer local (which is synced from a GET), fallback to payload value.
             return fromLocal || !!fromPayload;
           })()}
 
           onToggleArchive={(post) => {
             const pid = post?.post_id ?? post?.id ?? post?.postId ?? null;
-            if (pid != null) actions.toggleArchive(String(pid));
+            if (pid != null) {
+              const sid = String(pid);
+              const isArchived = state.archives.has(sid);
+              if (isArchived) {
+                actions.openConfirm("unarchive", { postId: sid });
+              } else {
+                actions.toggleArchive(sid);
+              }
+            }
           }}
           onAddToCalendar={(post) => {
             actions.closePostDetail();
@@ -115,8 +121,6 @@ export default function AppLayout() {
             const p = state.modals.calendarEvent.payload;
             const mode = state.modals.calendarEvent.mode;
             actions.closeCalendarEvent();
-            // If it was 'create' mode and had a payload, it came from a post detail.
-            // Return to post detail on cancel.
             const pid = p?.post_id ?? p?.id ?? p?.postId ?? null;
             if (mode === "create" && pid != null) {
               actions.openPostDetailFromPost(p);
@@ -162,6 +166,8 @@ export default function AppLayout() {
           </div>
         </div>
       )}
+
+      <Toast open={state.modals.toast.open} message={state.modals.toast.message} />
     </div>
   );
 }

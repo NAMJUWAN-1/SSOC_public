@@ -10,7 +10,6 @@ export default function CalendarPage() {
   const [expandedWeek, setExpandedWeek] = useState(null);
 
   useEffect(() => {
-    // API-ready: fetch events for current month (backend 미구현 시 무시됨)
     const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString();
     const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59).toISOString();
     actions.fetchCalendarEvents?.({ start, end });
@@ -26,7 +25,7 @@ export default function CalendarPage() {
         </h2>
 
         <div className="flex items-center gap-4">
-          {/* Month Navigation (Moved from CalendarMonth to here for better layout control) */}
+          {/* Month Navigation */}
           <div className="bg-white rounded-xl px-4 py-2 border border-slate-100 flex items-center gap-4 shadow-sm">
             <button
               onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))}
@@ -63,7 +62,7 @@ export default function CalendarPage() {
           expandedWeek={expandedWeek}
           setExpandedWeek={setExpandedWeek}
           onOpenEvent={(ev) => actions.openPostDetailFromEvent(ev)}
-          hideHeader={true} // New prop to hide internal header
+          hideHeader={true}
         />
       </section>
     </div>

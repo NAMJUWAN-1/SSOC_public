@@ -67,7 +67,6 @@ export async function listCalendarEvents({ user_id, start, end }) {
 
 /**
  * GET /api/calendar-events/?calendar_event_id={id}
- * 명세서: 주의: ID를 Path Variable이 아닌 Query Parameter로 넘기는 방식
  */
 export async function getCalendarEventDetail(calendar_event_id) {
   const qs = new URLSearchParams();
@@ -94,7 +93,6 @@ export async function getPostForCalendar({ post_id }) {
  * POST /api/calendar-events/
  */
 export async function createCalendarEvent(payload) {
-  // 명세서 필드명으로 변환
   const mapped = {
     custom_title: payload.title,
     custom_content: payload.content,
@@ -120,7 +118,6 @@ export async function createCalendarEvent(payload) {
  * PATCH /api/calendar-events/{id}/
  */
 export async function patchCalendarEvent(calendar_event_id, patch) {
-  // 명세서 필드명으로 변환
   const mapped = {};
   if (patch.title !== undefined) mapped.custom_title = patch.title;
   if (patch.content !== undefined) mapped.custom_content = patch.content;

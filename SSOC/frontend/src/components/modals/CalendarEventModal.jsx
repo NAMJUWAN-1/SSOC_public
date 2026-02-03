@@ -19,21 +19,17 @@ function getPostLink(post) {
   return getMattermostLink(post) || null;
 }
 
-// Helpers to split ISO/Value into Date and Time parts
 function splitDateTime(isoStr) {
   if (!isoStr) return { date: "", time: "" };
   const d = new Date(isoStr);
   if (Number.isNaN(d.getTime())) return { date: "", time: "" };
 
-  // yyyy-MM-dd
   const date = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + "-" + String(d.getDate()).padStart(2, '0');
-  // HH:mm
   const time = String(d.getHours()).padStart(2, '0') + ":" + String(d.getMinutes()).padStart(2, '0');
 
   return { date, time };
 }
 
-// --- Custom Picker Components ---
 
 function CustomTimePicker({ value, onChange, color }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -211,7 +207,6 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
   const isEdit = mode === "edit";
   const isFromPost = !isEdit && !!getPostId(payload);
 
-  // ... Extraction Logic ...
   const postTitle = useMemo(() => isFromPost ? (payload?.ai_title ?? payload?.title ?? "") : "", [isFromPost, payload]);
   const postContent = useMemo(() => isFromPost ? (payload?.content ?? payload?.rawContent ?? "") : "", [isFromPost, payload]);
   const postCategory = useMemo(() => isFromPost ? (payload?.category_name ?? payload?.categoryName ?? payload?.category ?? "기타") : "기타", [isFromPost, payload]);
@@ -224,7 +219,6 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
   const aiTitle = useMemo(() => (isFromPost ? postTitle : ""), [isFromPost, postTitle]);
   const aiContent = useMemo(() => (isFromPost ? postContent : ""), [isFromPost, postContent]);
 
-  // Initial Split Values
   const getInitialStart = () => {
     if (isEdit) return splitDateTime(payload?.startAt || payload?.start_at);
     return { date: "", time: "00:00" };
@@ -235,7 +229,6 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
     return { date: "", time: "00:00" };
   };
 
-  // State
   const [title, setTitle] = useState(isEdit ? (payload?.title ?? payload?.name ?? "") : "");
   const [content, setContent] = useState(isEdit ? (payload?.content ?? payload?.rawContent ?? "") : "");
 
@@ -246,7 +239,6 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
 
   const [color, setColor] = useState(() => {
     if (isEdit) return payload?.color || getDefaultColorForCategory(payload?.category);
-    // For any new registration (manual or from post), force manual color selection
     return "";
   });
   const [saving, setSaving] = useState(false);
@@ -254,7 +246,6 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
   const [originalValues, setOriginalValues] = useState(null);
 
   useEffect(() => {
-    // Round initial minutes to nearest 5 for consistency
     const roundMin = (t) => {
       const [h, m] = t.split(":");
       const roundedM = Math.round(parseInt(m, 10) / 5) * 5;
@@ -266,7 +257,6 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
 
   const toggleAi = () => {
     if (!isAiApplied) {
-      // Store current values before applying AI
       setOriginalValues({
         title,
         content,
@@ -286,7 +276,6 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
       setEndTime(e.time);
       setIsAiApplied(true);
     } else {
-      // Restore original values
       if (originalValues) {
         setTitle(originalValues.title);
         setContent(originalValues.content);
@@ -301,7 +290,6 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
 
   const submit = async () => {
     const finalTitle = title || (isFromPost ? aiTitle : "");
-    // Combiner
     const combine = (d, t) => {
       if (!d) return null;
       return new Date(`${d}T${t || "00:00"}:00`).toISOString();
@@ -313,11 +301,9 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
 
     if (!finalTitle.trim()) return actions.openConfirm("event_title_required");
 
-    // Split date validation
     if (!startDate) return actions.openConfirm("event_start_date_required");
     if (!endDate) return actions.openConfirm("event_end_date_required");
 
-    // Correctness check: end < start
     if (finalStartISO && finalEndISO && finalEndISO < finalStartISO) {
       return actions.openConfirm("event_invalid_period");
     }
@@ -367,10 +353,9 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
     actions.openConfirm("delete_event", { eventId: payload.id });
   };
 
-  // Custom Header
   const headerContent = (
     <div>
-      <div className="flex items-center gap-2 text-xs text-slate-500 font-medium mb-1">
+      <div className="flex items-center gap-2 text-xs text-slate-500 font-medium mb-3">
         {isEdit ? (
           <>
             <span>일정 수정</span>
@@ -390,7 +375,7 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
           </>
         )}
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 mb-[-8px]">
         <h3 className="font-medium text-2xl text-slate-900">{isEdit ? "일정 수정" : "일정 등록"}</h3>
         {!isEdit && isFromPost && (
           <div className="flex items-center gap-3 mt-1.5">
@@ -425,7 +410,7 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
     <ModalBase
       title={headerContent}
       onClose={onClose}
-      size="lg" // Increased size to match design spaciousness
+      size="lg"
       headerVariant="light"
     >
       <div className="space-y-6">
@@ -445,7 +430,7 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
         </div>
 
         {/* Content Input */}
-        <div className="space-y-3">
+        <div className="space-y-3 pt-1">
           <div className="flex items-center justify-between">
             <div className="flex items-center border-l-[3px] border-[#FFBC1F] pl-3 font-bold text-slate-700 h-4">
               상세 내용
@@ -456,12 +441,12 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
             value={content}
             onChange={(e) => setContent(e.target.value)}
             placeholder="상세 내용을 입력하세요"
-            className="w-full p-5 bg-[#F8F9FC] border border-transparent rounded-2xl text-slate-600 font-medium focus:outline-none focus:bg-white focus:border-[#1E325C] focus:ring-1 focus:ring-[#1E325C] transition-all resize-none h-32 custom-scrollbar"
+            className="w-full pt-2 pb-5 px-5 bg-[#F8F9FC] border border-transparent rounded-2xl text-slate-600 font-medium focus:outline-none focus:bg-white focus:border-[#1E325C] focus:ring-1 focus:ring-[#1E325C] transition-all resize-none h-32 custom-scrollbar"
           />
         </div>
 
         {/* Color Selection */}
-        <div className="space-y-2">
+        <div className="space-y-2 pt-1">
           <div className="flex items-center border-l-[3px] border-[#FFBC1F] pl-3 font-bold text-slate-700 h-4">
             일정 색상 선택
           </div>
@@ -471,7 +456,7 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
         </div>
 
         {/* Time Setting Box */}
-        <div className="space-y-3">
+        <div className="space-y-3 pt-4">
           <div className="flex items-center border-l-[3px] border-[#FFBC1F] pl-3 font-bold text-slate-700 h-4">
             일정 기간 설정
           </div>
@@ -524,13 +509,13 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
           <button
             onClick={submit}
             disabled={saving}
-            className="px-8 py-3.5 bg-[#1E325C] text-white rounded-xl font-bold hover:bg-[#2a457a] shadow-lg shadow-blue-900/10 transition-all flex items-center justify-center gap-2"
+            className="px-8 py-3 bg-[#1E325C] text-white rounded-xl font-bold hover:bg-[#2a457a] shadow-lg shadow-blue-900/10 transition-all flex items-center justify-center gap-2"
           >
             {saving ? "저장 중..." : (isEdit ? "수정 완료" : "일정 등록하기")}
           </button>
           <button
             onClick={isEdit ? handleDelete : onClose}
-            className={`px-8 py-3.5 rounded-xl font-bold transition-all border ${isEdit
+            className={`px-8 py-3 rounded-xl font-bold transition-all border ${isEdit
               ? "bg-white border-[#FF3B30] text-[#FF3B30] hover:bg-[#FF3B30] hover:text-white"
               : "bg-white border-slate-300 text-slate-600 hover:bg-slate-50"
               }`}

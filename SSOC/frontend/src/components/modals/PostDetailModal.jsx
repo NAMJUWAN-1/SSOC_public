@@ -8,7 +8,6 @@ function formatDate(dt) {
   if (!dt) return "";
   const d = new Date(dt);
   if (Number.isNaN(d.getTime())) return "";
-  // Format: 2026년 1월 30일 금
   return d.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "short" });
 }
 
@@ -16,24 +15,22 @@ function formatTime(dt) {
   if (!dt) return "";
   const d = new Date(dt);
   if (Number.isNaN(d.getTime())) return "";
-  // Format: 10:45
   return d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
 export default function PostDetailModal({
-  mode,            // "post" | "event"
-  payload,         // post or calendarEvent
+  mode,
+  payload,
   onClose,
   onEditEvent,
   onDeleteEvent,
-  // optional
   allowArchive = false,
   allowCalendarAdd = false,
   isArchived,
   onToggleArchive,
   onAddToCalendar,
 
-  linkUrl, // optional direct link override
+  linkUrl,
 }) {
   if (!payload) return null;
 
@@ -41,15 +38,12 @@ export default function PostDetailModal({
   const postLike = isEvent ? null : payload;
   const eventLike = isEvent ? payload : null;
 
-  // Calendar event may carry a linked post (when the event was created from a post)
   const linkedPost = isEvent ? (payload?.linkedPost ?? payload?.linked_post ?? null) : null;
 
-  // Backend post shape
   const boardName = postLike?.board_name ?? postLike?.boardName;
   const channelName = postLike?.channel_name ?? postLike?.channelName;
   const categoryName = postLike?.category_name ?? postLike?.categoryName;
 
-  // Event header meta (post-derived -> linkedPost, manual -> "개인일정")
   const eventBoardName =
     linkedPost?.board_name ??
     linkedPost?.boardName ??
@@ -75,7 +69,6 @@ export default function PostDetailModal({
   const title = isEvent ? (payload.title || "일정") : (postLike?.ai_title ?? postLike?.title ?? "(제목 없음)");
   const content = isEvent ? (payload.content || "") : (postLike?.content ?? postLike?.rawContent ?? "");
 
-  // Date Logic
   const startObj = isEvent
     ? (payload.startAt || payload.start_at)
     : (postLike?.start_at ?? postLike?.startAt ?? postLike?.posted_at ?? postLike?.postedAt);
@@ -92,10 +85,9 @@ export default function PostDetailModal({
       ? payload?.mmLink ?? payload?.mm_link ?? getMattermostLink(payload)
       : getMattermostLink(postLike));
 
-  // Custom Header Content
   const headerContent = (
     <div>
-      <div className="flex items-center gap-2 text-xs text-slate-500 font-medium mb-1">
+      <div className="flex items-center gap-2 text-xs text-slate-500 font-medium mb-3">
         {isEvent ? (
           <>
             {(eventBoardLabel || isPersonalEvent) && <span>{eventBoardLabel || "개인일정"}</span>}
@@ -120,11 +112,10 @@ export default function PostDetailModal({
           </>
         )}
       </div>
-      <h3 className="font-black text-2xl text-slate-900 tracking-tight line-clamp-1">{title}</h3>
+      <h3 className="font-black text-2xl text-slate-900 tracking-tight line-clamp-1 mb-[-8px]">{title}</h3>
     </div>
   );
 
-  // Header Actions (Star)
   const headerActions = (
     <>
       {!isEvent && allowArchive && (
@@ -150,14 +141,14 @@ export default function PostDetailModal({
       <div className="space-y-3">
 
         {/* Content */}
-        <div className="space-y-4">
+        <div className="space-y-4 pt-1">
 
-          <div className="space-y-4">
+          <div className="space-y-4 pt-1">
             <div className="flex items-center border-l-[3px] border-[#FFBC1F] pl-3 font-bold text-slate-700 h-4">
               상세 내용
             </div>
             {/* Height restricted to 300px for scrolling */}
-            <div className="bg-[#F8F9FC] p-5 rounded-2xl text-slate-600 font-medium min-h-[100px] max-h-[320px] overflow-y-auto border border-slate-100 shadow-sm custom-scrollbar">
+            <div className="bg-[#F8F9FC] pt-2 pb-5 px-5 rounded-2xl text-slate-600 font-medium min-h-[100px] max-h-[320px] overflow-y-auto border border-slate-100 shadow-sm custom-scrollbar">
               {content ? (
                 <MarkdownRenderer content={content} />
               ) : (
@@ -168,7 +159,7 @@ export default function PostDetailModal({
         </div>
 
         {/* Date/Time Info Box - Bottom */}
-        <div className="space-y-4">
+        <div className="space-y-4 pt-4">
           <div className="flex items-center border-l-[3px] border-[#FFBC1F] pl-3 font-bold text-slate-700 h-4">
             일정 기간 정보
           </div>
@@ -230,13 +221,13 @@ export default function PostDetailModal({
             <>
               <button
                 onClick={() => onDeleteEvent?.(eventLike)}
-                className="flex items-center justify-center bg-red-50 text-red-600 px-6 py-3.5 rounded-xl font-medium hover:bg-red-100 transition-all border border-red-100"
+                className="flex items-center justify-center bg-red-50 text-red-600 px-6 py-3 rounded-xl font-medium hover:bg-red-100 transition-all border border-red-100"
               >
                 <Trash2 size={18} className="mr-2" /> 삭제
               </button>
               <button
                 onClick={() => onEditEvent?.(eventLike)}
-                className="flex items-center justify-center bg-white text-slate-700 px-6 py-3.5 rounded-xl font-medium hover:bg-slate-50 transition-all border border-slate-200 shadow-sm"
+                className="flex items-center justify-center bg-white text-slate-700 px-6 py-3 rounded-xl font-medium hover:bg-slate-50 transition-all border border-slate-200 shadow-sm"
               >
                 <Edit size={18} className="mr-2" /> 수정
               </button>
@@ -246,7 +237,7 @@ export default function PostDetailModal({
           {!isEvent && allowCalendarAdd && (
             <button
               onClick={() => onAddToCalendar?.(postLike)}
-              className="flex-1 flex items-center justify-center bg-white text-slate-700 px-6 py-3.5 rounded-xl font-black transition-all border border-slate-300 hover:bg-slate-50 shadow-sm"
+              className="flex-1 flex items-center justify-center bg-white text-slate-700 px-6 py-3 rounded-xl font-black transition-all border border-slate-300 hover:bg-slate-50 shadow-sm"
             >
               <CalendarPlus size={18} className="mr-2" />
               내 캘린더에 추가
@@ -258,7 +249,7 @@ export default function PostDetailModal({
               href={link}
               target="_blank"
               rel="noreferrer"
-              className="flex-1 flex items-center justify-center bg-[#1E325C] text-white px-6 py-3.5 rounded-xl font-medium hover:bg-[#2a457a] shadow-lg shadow-slate-200 transition-all"
+              className="flex-1 flex items-center justify-center bg-[#1E325C] text-white px-6 py-3 rounded-xl font-medium hover:bg-[#2a457a] shadow-lg shadow-slate-200 transition-all"
             >
               Mattermost에서 보기 <ExternalLink size={18} className="ml-2" />
             </a>

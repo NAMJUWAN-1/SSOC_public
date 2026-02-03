@@ -1,11 +1,7 @@
 import React from "react";
 import { Check, Tag, X } from "lucide-react";
 
-/**
- * BoardChannelFilter
- * - boards: [{ board_id, board_name, channels: [{ channel_id, channel_name }] }]
- * - categories: [{ category_id, category_name }]
- */
+
 export default function BoardChannelFilter({
   open,
   boards = [],
@@ -21,8 +17,6 @@ export default function BoardChannelFilter({
 }) {
   if (!open) return null;
 
-  // Backend structure: category is nested under a single channel.
-  // UX requirement: show category filter ONLY when exactly ONE channel is selected.
   const canShowCategory = !!showCategory && (selectedChannels?.length ?? 0) === 1;
 
   const board = boards.find((b) => b.board_id === selectedBoard);
@@ -88,7 +82,7 @@ export default function BoardChannelFilter({
         )
       }
 
-      {/* Category - Always visible if board is selected to prevent layout shift */}
+      {/* Category */}
       {selectedBoard && (
         <div className="mt-4 animate-in fade-in duration-300 flex items-center gap-4">
           <h4 className="text-sm font-bold text-slate-800 shrink-0 border-r-2 border-slate-200 mr-2 w-24 text-center">카테고리</h4>

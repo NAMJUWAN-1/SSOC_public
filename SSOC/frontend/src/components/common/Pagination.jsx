@@ -1,11 +1,7 @@
 import React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-/**
- * Pagination
- * - Legacy props: { totalItems, itemsPerPage, currentPage, onPageChange }
- * - New props:    { page, totalPages, onPageChange }
- */
+
 export default function Pagination(props) {
   const currentPage = props.currentPage ?? props.page ?? 1;
   const onPageChange = props.onPageChange;
