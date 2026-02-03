@@ -80,11 +80,16 @@ export default function AppLayout() {
           allowCalendarAdd={true}
           isArchived={(() => {
             const p = state.modals.postDetail.payload;
-            const pid = p?.post_id ?? p?.id;
-            return !!pid && state.archives.has(String(pid));
+            const pid = p?.post_id ?? p?.id ?? p?.postId ?? null;
+            const fromPayload =
+              typeof p?.is_archived === "boolean" ? p.is_archived : typeof p?.isArchived === "boolean" ? p.isArchived : null;
+            const fromLocal = !!pid && state.archives.has(String(pid));
+            // Prefer local (which is synced from a GET), fallback to payload value.
+            return fromLocal || !!fromPayload;
           })()}
+
           onToggleArchive={(post) => {
-            const pid = post?.post_id ?? post?.id;
+            const pid = post?.post_id ?? post?.id ?? post?.postId ?? null;
             if (pid != null) actions.toggleArchive(String(pid));
           }}
           onAddToCalendar={(post) => {
@@ -106,7 +111,17 @@ export default function AppLayout() {
         <CalendarEventModal
           mode={state.modals.calendarEvent.mode}
           payload={state.modals.calendarEvent.payload}
-          onClose={actions.closeCalendarEvent}
+          onClose={() => {
+            const p = state.modals.calendarEvent.payload;
+            const mode = state.modals.calendarEvent.mode;
+            actions.closeCalendarEvent();
+            // If it was 'create' mode and had a payload, it came from a post detail.
+            // Return to post detail on cancel.
+            const pid = p?.post_id ?? p?.id ?? p?.postId ?? null;
+            if (mode === "create" && pid != null) {
+              actions.openPostDetailFromPost(p);
+            }
+          }}
         />
       )}
 

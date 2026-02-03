@@ -41,7 +41,7 @@ export default function ArchiveList({
             {items.map((p) => {
                 const id = String(p.post_id ?? p.id);
                 const title = p.ai_title ?? p.title ?? "(제목 없음)";
-                const content = p.content ?? p.rawContent ?? "";
+                const content = p.display_content ?? p.displayContent ?? p.content ?? p.rawContent ?? "";
                 const postedAt = p.posted_at ?? p.postedAt ?? p.createdAt ?? p.start_at ?? p.startAt;
 
                 const channelName = p.channel_name ?? p.channelName ?? null;

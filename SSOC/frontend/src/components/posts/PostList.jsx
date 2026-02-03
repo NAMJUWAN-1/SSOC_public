@@ -40,13 +40,20 @@ export default function PostList({
         items.map((p) => {
           const id = String(p.post_id ?? p.id);
           const title = p.ai_title ?? p.title ?? "(제목 없음)";
-          const content = p.content ?? p.rawContent ?? "";
-          const postedAt = p.posted_at ?? p.postedAt ?? p.createdAt ?? p.start_at ?? p.startAt;
+          const content =
+            p.display_content ??
+            p.displayContent ??
+            p.content ??
+            p.rawContent ??
+            "";
+          const postedAt = p.start_at ?? p.startAt ?? p.posted_at ?? p.postedAt ?? p.createdAt;
 
           const channelName = p.channel_name ?? p.channelName ?? null;
           const categoryName = p.category_name ?? p.categoryName ?? null;
 
-          const isArchived = !!archivesSet?.has?.(id);
+          const fromLocal = archivesSet ? archivesSet.has(id) : null;
+          const fromServer = typeof p.is_archived === "boolean" ? p.is_archived : (typeof p.isArchived === "boolean" ? p.isArchived : null);
+          const isArchived = fromLocal !== null ? fromLocal : !!fromServer;
 
           return (
             <div
@@ -97,7 +104,8 @@ export default function PostList({
                       if (showArchiveConfirm && isArchived) {
                         showArchiveConfirm(id);
                       } else {
-                        onToggleArchive(id);
+                        // Pass the full post object to toggleArchive to support adding it to archivedPosts list optimistically
+                        onToggleArchive(p);
                       }
                     }}
                   >

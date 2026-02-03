@@ -46,7 +46,8 @@ export default function DashboardPage() {
     categoryRef.current = selectedCategory;
   }, [selectedCategory]);
 
-  // Real-time search: Debounce queryInput into query
+  // Debounce typing into the actual backend search query
+  // (SearchWithHistory's onSearch still commits immediately.)
   useEffect(() => {
     const timer = setTimeout(() => {
       setQuery(queryInput);
@@ -55,9 +56,9 @@ export default function DashboardPage() {
   }, [queryInput]);
 
   // ---- Data state ----
-  const [scopePosts, setScopePosts] = useState([]); // channel scope without category
-  const [posts, setPosts] = useState([]); // final list (maybe category-filtered)
-  const [rankingPosts, setRankingPosts] = useState([]); // fixed ranking independent of filters
+  const [scopePosts, setScopePosts] = useState(state.dashboardCache.scopePosts || []);
+  const [posts, setPosts] = useState(state.dashboardCache.scopePosts || []);
+  const [rankingPosts, setRankingPosts] = useState(state.dashboardCache.rankingPosts || []);
   const [loading, setLoading] = useState(false);
 
   // ---- Build board/channel tree from backend user profile ----
@@ -141,73 +142,102 @@ export default function DashboardPage() {
     }
   }, [selectedChannels]);
 
-  // Fetch posts for current channel scope (without category)
+  // Consolidated Data Fetching (Scope + Ranking)
   useEffect(() => {
     let alive = true;
-
     const run = async () => {
       if (!state.auth.isAuthenticated) return;
-      if (!channelScopeIds || channelScopeIds.length === 0) {
-        setScopePosts([]);
-        setPosts([]);
+      if (!allUserChannelIds || allUserChannelIds.length === 0) return;
+
+      const allChannelsKey = allUserChannelIds.join(",");
+      const isInitialAllScope = channelScopeKey === allChannelsKey;
+
+      // Check Cache TTL (300 seconds)
+      const cache = state.dashboardCache;
+      const isFresh = cache.lastUpdated && (new Date() - new Date(cache.lastUpdated)) < 300000;
+
+      // Define fetching functions first to avoid ReferenceError
+      const fetchRanking = async () => {
+        if (isFresh && cache.rankingPosts?.length > 0) {
+          setRankingPosts(cache.rankingPosts);
+          return;
+        }
+        try {
+          const res = await fetchWithAuth(apiUrl("/api/archives/ranking/"), { method: "GET" });
+          if (!res.ok) throw new Error("ranking fetch failed");
+          const data = await res.json();
+          if (!alive) return;
+          const list = Array.isArray(data) ? data : [];
+          setRankingPosts(list);
+          actions.setDashboardCache({ rankingPosts: list });
+        } catch (e) {
+          if (!alive) return;
+          console.error("[ranking fetch] error:", e);
+        }
+      };
+
+      const fetchScope = async () => {
+        if (scopePosts.length === 0) setLoading(true);
+        try {
+          const res = await fetchWithAuth(apiUrl(`/api/posts/?channel_id=${channelScopeKey}`), { method: "GET" });
+          if (!res.ok) throw new Error("scope fetch failed");
+          const data = await res.json();
+          if (!alive) return;
+          const list = Array.isArray(data) ? data : [];
+          setScopePosts(list);
+          actions.setDashboardCache({ scopePosts: list });
+        } catch (e) {
+          if (!alive) return;
+          console.error("[scope fetch] error:", e);
+        } finally {
+          if (!alive) return;
+          setLoading(false);
+        }
+      };
+
+      // 1. Initial Load / No Filter Case: Consolidate scope and ranking into ONE call
+      if (isInitialAllScope) {
+        const canUseScopeCache = isFresh && cache.scopePosts?.length > 0;
+        const canUseRankingCache = isFresh && cache.rankingPosts?.length > 0;
+
+        if (canUseScopeCache) {
+          setScopePosts(cache.scopePosts);
+        } else {
+          setLoading(true);
+          try {
+            const res = await fetchWithAuth(apiUrl(`/api/posts/?channel_id=${allChannelsKey}`), { method: "GET" });
+            if (!res.ok) throw new Error("combined fetch failed");
+            const data = await res.json();
+            if (!alive) return;
+            const list = Array.isArray(data) ? data : [];
+            setScopePosts(list);
+            actions.setDashboardCache({ scopePosts: list });
+          } catch (e) {
+            if (!alive) return;
+            console.error("[consolidated posts fetch] error:", e);
+          } finally {
+            if (!alive) return;
+            setLoading(false);
+          }
+        }
+
+        // Always check ranking independently
+        if (canUseRankingCache) {
+          setRankingPosts(cache.rankingPosts);
+        } else {
+          fetchRanking();
+        }
         return;
       }
 
-      setLoading(true);
-      try {
-        const params = new URLSearchParams();
-        params.set("channel_id", channelScopeIds.join(","));
-
-        const res = await fetchWithAuth(apiUrl(`/api/posts/?${params.toString()}`), { method: "GET" });
-        if (!res.ok) throw new Error(`posts fetch failed (${res.status})`);
-        const data = await res.json();
-
-        if (!alive) return;
-        const list = Array.isArray(data) ? data : [];
-        setScopePosts(list);
-        // Avoid flicker: if user is searching or category-filtering, leave display list to the other effect.
-        if (!queryRef.current.trim() && !categoryRef.current) {
-          setPosts(list);
-        }
-      } catch (e) {
-        if (!alive) return;
-        setScopePosts([]);
-        setPosts([]);
-        // eslint-disable-next-line no-console
-        console.error(e);
-      } finally {
-        if (!alive) return;
-        setLoading(false);
-      }
+      // 2. Filtered Scope Case: Use two separate checks
+      fetchScope();
+      fetchRanking();
     };
 
-    run();
-    return () => {
-      alive = false;
-    };
-  }, [state.auth.isAuthenticated, channelScopeKey]);
-
-  // Ranking fetch (Global/All Channels) - Independent of filters
-  useEffect(() => {
-    let alive = true;
-    const run = async () => {
-      if (!state.auth.isAuthenticated || allUserChannelIds.length === 0) return;
-      try {
-        const params = new URLSearchParams();
-        params.set("channel_id", allUserChannelIds.join(","));
-        const res = await fetchWithAuth(apiUrl(`/api/posts/?${params.toString()}`), { method: "GET" });
-        if (!res.ok) throw new Error("ranking fetch failed");
-        const data = await res.json();
-        if (!alive) return;
-        setRankingPosts(Array.isArray(data) ? data : []);
-      } catch (e) {
-        if (!alive) return;
-        console.error("[ranking] fetch error:", e);
-      }
-    };
     run();
     return () => { alive = false; };
-  }, [state.auth.isAuthenticated, allUserChannelIds.join(",")]);
+  }, [state.auth.isAuthenticated, channelScopeKey, allUserChannelIds.join(",")]);
 
   // Fetch display posts using backend-side filters/search (vector search ready)
   // - when query is committed, always request from backend
@@ -229,6 +259,7 @@ export default function DashboardPage() {
       setLoading(true);
       try {
         const params = new URLSearchParams();
+        // Always pass channel scope so semantic search respects the user's current filter scope.
         if (channelScopeIds.length > 0) params.set("channel_id", channelScopeIds.join(","));
         if (selectedCategory) params.set("category_id", String(selectedCategory));
         if (hasQuery) params.set("keyword", query.trim());
@@ -276,8 +307,32 @@ export default function DashboardPage() {
   }, [scopePosts]);
 
   // ---- Search + Pagination ----
-  // Backend now handles search (vector embedding). No client-side filtering.
-  const filtered = posts;
+  // Apply MyPage-style client-side filtering logic to ensure instantaneous and robust filtering.
+  const filtered = useMemo(() => {
+    return posts.filter((p) => {
+      const pidBoard = p.board_id ?? p.boardId;
+      const pidChannel = p.channel_id ?? p.channelId;
+      const pidCategory = p.category_id ?? p.categoryId;
+
+      let matchFilter = true;
+
+      // 1. Channel Filter (Highest priority)
+      if (selectedChannels.length > 0) {
+        matchFilter = selectedChannels.includes(pidChannel);
+      }
+      // 2. Board Filter (If no specific channels selected)
+      else if (selectedBoard) {
+        matchFilter = pidBoard === selectedBoard;
+      }
+
+      // 3. Category Filter
+      if (matchFilter && selectedCategory) {
+        matchFilter = pidCategory === selectedCategory;
+      }
+
+      return matchFilter;
+    });
+  }, [posts, selectedBoard, selectedChannels, selectedCategory]);
 
   const pageSize = 8;
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -290,6 +345,10 @@ export default function DashboardPage() {
   useEffect(() => {
     setPage(1);
   }, [query, selectedCategory]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [page]);
 
   // ---- Handlers ----
   const onSelectBoard = (boardId) => {
@@ -380,7 +439,6 @@ export default function DashboardPage() {
               <span className="text-sm font-black text-slate-600 group-hover:text-[#1E325C]">필터</span>
             </button>
           </div>
-
         </div>
 
         <BoardChannelFilter

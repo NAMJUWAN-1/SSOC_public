@@ -16,6 +16,15 @@ function clampNickname(s) {
   return String(s ?? "").slice(0, 20);
 }
 
+function normalizeAvatarUrl(u) {
+  const s = String(u ?? "").trim();
+  if (!s) return "";
+  if (s.startsWith("http://") || s.startsWith("https://")) return s;
+  if (s.startsWith("/")) return s;
+  return `/${s}`;
+}
+
+
 export default function ProfileSetupModal({ user, force = false, onClose, onSubmit }) {
   const defaultNickname = useMemo(() => {
     return (
@@ -27,10 +36,10 @@ export default function ProfileSetupModal({ user, force = false, onClose, onSubm
     );
   }, [user]);
 
-  const defaultAvatar = useMemo(() => user?.profile_image_url || AVATAR_LIST[0], [user]);
+  const defaultAvatar = useMemo(() => normalizeAvatarUrl(user?.profile_image_url || user?.profile_image || AVATAR_LIST[0]), [user]);
 
   const [nickname, setNickname] = useState(clampNickname(defaultNickname));
-  const [profileImageUrl, setProfileImageUrl] = useState(defaultAvatar);
+  const [profileImageUrl, setProfileImageUrl] = useState(normalizeAvatarUrl(defaultAvatar));
   const [isShaking, setIsShaking] = useState(false);
 
   const handleSubmit = () => {
@@ -41,7 +50,7 @@ export default function ProfileSetupModal({ user, force = false, onClose, onSubm
       return;
     }
     if (nn.length > 20) return;
-    onSubmit?.({ nickname: nn, profile_image_url: profileImageUrl });
+    onSubmit?.({ nickname: nn, profile_image_url: normalizeAvatarUrl(profileImageUrl) });
   };
 
   return (

@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { CalendarPlus, Sparkles, Clock, Calendar as CalendarIcon, ArrowRight, Star } from "lucide-react";
+import { CalendarPlus, Sparkles, Clock, Calendar as CalendarIcon, ArrowRight, RotateCcw } from "lucide-react";
 import ModalBase from "../common/ModalBase";
 import ColorPicker from "../common/ColorPicker";
 import { useApp } from "../../state/AppProvider";
@@ -46,17 +46,17 @@ function CustomTimePicker({ value, onChange, color }) {
     <div className="relative w-full">
       <div
         onClick={() => setIsOpen(!isOpen)}
-        className="bg-slate-50 border-2 border-slate-100 rounded-2xl p-3 flex items-center shadow-sm hover:border-opacity-50 transition-all cursor-pointer"
+        className="bg-white border border-slate-200 rounded-2xl p-2.5 flex items-center shadow-sm hover:bg-slate-50 transition-all cursor-pointer h-12"
         style={{ borderColor: isOpen ? color : undefined }}
       >
-        <Clock className="ml-2 text-slate-400" size={18} style={{ color: isOpen ? color : undefined }} />
-        <span className="w-full px-3 text-sm font-black text-slate-700">{value || "시간 선택"}</span>
+        <Clock className="mr-2 text-slate-400 opacity-60" size={14} style={{ color: isOpen ? color : undefined }} />
+        <span className="text-sm font-black text-slate-700 whitespace-nowrap">{value || "시간"}</span>
       </div>
 
       {isOpen && (
         <>
           <div className="fixed inset-0 z-[60]" onClick={() => setIsOpen(false)} />
-          <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-slate-100 shadow-2xl rounded-2xl z-[70] p-4 flex gap-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
+          <div className="absolute bottom-full right-0 mb-2 bg-white border border-slate-100 shadow-2xl rounded-2xl z-[70] p-4 flex gap-4 w-48 animate-in fade-in slide-in-from-bottom-2 duration-200">
             <div className="flex-1 max-h-48 overflow-y-auto custom-scrollbar pr-1">
               <div className="text-[10px] font-black text-slate-400 mb-2 sticky top-0 bg-white py-1">시</div>
               {hours.map((hour) => (
@@ -126,11 +126,19 @@ function CustomDatePicker({ value, onChange, color }) {
     <div className="relative w-full">
       <div
         onClick={() => setIsOpen(!isOpen)}
-        className="bg-slate-50 border-2 border-slate-100 rounded-2xl p-3 flex items-center shadow-sm hover:border-opacity-50 transition-all cursor-pointer"
+        className="bg-white border border-slate-200 rounded-2xl p-2.5 flex items-center shadow-sm hover:bg-slate-50 transition-all cursor-pointer h-12"
         style={{ borderColor: isOpen ? color : undefined }}
       >
-        <CalendarIcon className="ml-2 text-slate-400" size={18} style={{ color: isOpen ? color : undefined }} />
-        <span className="w-full px-3 text-sm font-black text-slate-700">{value || "날짜 선택"}</span>
+        <CalendarIcon className="mr-2 text-slate-400 opacity-60" size={14} style={{ color: isOpen ? color : undefined }} />
+        <div className="flex items-center min-w-0">
+          {value ? (
+            <span className="text-sm font-black text-slate-700 whitespace-nowrap">
+              {value}
+            </span>
+          ) : (
+            <span className="text-sm font-black text-slate-400">날짜 선택</span>
+          )}
+        </div>
       </div>
 
       {isOpen && (
@@ -201,13 +209,14 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
   const { actions } = useApp();
 
   const isEdit = mode === "edit";
-  const isFromPost = !isEdit && !!payload;
+  const isFromPost = !isEdit && !!getPostId(payload);
 
   // ... Extraction Logic ...
   const postTitle = useMemo(() => isFromPost ? (payload?.ai_title ?? payload?.title ?? "") : "", [isFromPost, payload]);
   const postContent = useMemo(() => isFromPost ? (payload?.content ?? payload?.rawContent ?? "") : "", [isFromPost, payload]);
   const postCategory = useMemo(() => isFromPost ? (payload?.category_name ?? payload?.categoryName ?? payload?.category ?? "기타") : "기타", [isFromPost, payload]);
   const postChannel = useMemo(() => isFromPost ? (payload?.channel_name ?? payload?.channelName ?? "") : "", [isFromPost, payload]);
+  const postBoard = useMemo(() => isFromPost ? (payload?.board_name ?? payload?.boardName ?? "") : "", [isFromPost, payload]);
 
   const postStartRaw = useMemo(() => isFromPost ? (payload?.start_at ?? payload?.startAt ?? payload?.posted_at ?? payload?.postedAt ?? "") : "", [isFromPost, payload]);
   const postEndRaw = useMemo(() => isFromPost ? (payload?.end_at ?? payload?.endAt ?? payload?.start_at ?? payload?.startAt ?? "") : "", [isFromPost, payload]);
@@ -218,13 +227,11 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
   // Initial Split Values
   const getInitialStart = () => {
     if (isEdit) return splitDateTime(payload?.startAt || payload?.start_at);
-    if (isFromPost && postStartRaw) return splitDateTime(postStartRaw);
     return { date: "", time: "00:00" };
   };
 
   const getInitialEnd = () => {
     if (isEdit) return splitDateTime(payload?.endAt || payload?.end_at);
-    if (isFromPost && postEndRaw) return splitDateTime(postEndRaw);
     return { date: "", time: "00:00" };
   };
 
@@ -239,10 +246,12 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
 
   const [color, setColor] = useState(() => {
     if (isEdit) return payload?.color || getDefaultColorForCategory(payload?.category);
-    if (isFromPost) return payload?.color || getDefaultColorForCategory(postCategory);
-    return getDefaultColorForCategory("기타");
+    // For any new registration (manual or from post), force manual color selection
+    return "";
   });
   const [saving, setSaving] = useState(false);
+  const [isAiApplied, setIsAiApplied] = useState(false);
+  const [originalValues, setOriginalValues] = useState(null);
 
   useEffect(() => {
     // Round initial minutes to nearest 5 for consistency
@@ -255,15 +264,39 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
     if (endTime) setEndTime(roundMin(endTime));
   }, []);
 
-  const applyAi = () => {
-    setTitle(aiTitle);
-    setContent(aiContent);
-    const s = splitDateTime(postStartRaw);
-    const e = splitDateTime(postEndRaw);
-    setStartDate(s.date);
-    setStartTime(s.time);
-    setEndDate(e.date);
-    setEndTime(e.time);
+  const toggleAi = () => {
+    if (!isAiApplied) {
+      // Store current values before applying AI
+      setOriginalValues({
+        title,
+        content,
+        startDate,
+        startTime,
+        endDate,
+        endTime,
+      });
+
+      setTitle(aiTitle);
+      setContent(aiContent);
+      const s = splitDateTime(postStartRaw);
+      const e = splitDateTime(postEndRaw);
+      setStartDate(s.date);
+      setStartTime(s.time);
+      setEndDate(e.date);
+      setEndTime(e.time);
+      setIsAiApplied(true);
+    } else {
+      // Restore original values
+      if (originalValues) {
+        setTitle(originalValues.title);
+        setContent(originalValues.content);
+        setStartDate(originalValues.startDate);
+        setStartTime(originalValues.startTime);
+        setEndDate(originalValues.endDate);
+        setEndTime(originalValues.endTime);
+      }
+      setIsAiApplied(false);
+    }
   };
 
   const submit = async () => {
@@ -275,12 +308,19 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
     };
 
     const finalStartISO = combine(startDate, startTime);
-    const finalEndISO = combine(endDate, endTime) || finalStartISO; // fallback end to start
+    const finalEndISO = combine(endDate, endTime);
+    const finalColor = color || "#8E8E93";
 
-    if (!finalTitle.trim()) return alert("일정 제목을 입력해주세요.");
-    if (!content.trim()) return alert("상세 내용을 입력해주세요.");
-    if (!color) return alert("일정 색상을 선택해주세요.");
-    if (!finalStartISO) return alert("시작 일시를 입력해주세요.");
+    if (!finalTitle.trim()) return actions.openConfirm("event_title_required");
+
+    // Split date validation
+    if (!startDate) return actions.openConfirm("event_start_date_required");
+    if (!endDate) return actions.openConfirm("event_end_date_required");
+
+    // Correctness check: end < start
+    if (finalStartISO && finalEndISO && finalEndISO < finalStartISO) {
+      return actions.openConfirm("event_invalid_period");
+    }
 
     setSaving(true);
     try {
@@ -290,7 +330,7 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
           content: content ?? "",
           startAt: finalStartISO,
           endAt: finalEndISO,
-          color,
+          color: finalColor,
         });
         actions.closeCalendarEvent();
         actions.openConfirm("event_update_success");
@@ -302,12 +342,14 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
         source: isFromPost ? "post" : "manual",
         postId: isFromPost ? getPostId(payload) : null,
         title: finalTitle,
-        content: content || (isFromPost ? aiContent : "사용자가 직접 등록한 일정입니다."),
+        content: content || (isFromPost ? aiContent : ""),
         startAt: finalStartISO,
         endAt: finalEndISO,
         mmLink: isFromPost ? getPostLink(payload) : null,
+        boardName: isFromPost ? postBoard : "개인일정",
+        channelName: isFromPost ? postChannel : "",
         category: isFromPost ? postCategory : "기타",
-        color,
+        color: finalColor,
         createdAt: new Date().toISOString(),
       };
 
@@ -329,40 +371,64 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
   const headerContent = (
     <div>
       <div className="flex items-center gap-2 text-xs text-slate-500 font-medium mb-1">
-        {postChannel || "기타 채널"}
-        <span className="text-slate-300">|</span>
-        {isEdit ? (payload?.category || "기타") : (postCategory || "기타")}
+        {isEdit ? (
+          <>
+            <span>일정 수정</span>
+            <span className="text-slate-300">|</span>
+            <span>{payload?.category || "기타"}</span>
+          </>
+        ) : (
+          <>
+            {postBoard && <span>{postBoard}</span>}
+            {(postChannel || postCategory) && <span className="text-slate-300">|</span>}
+            {postChannel && <span># {postChannel}</span>}
+            {postCategory && (
+              <span className="bg-slate-100 text-[#1E325C] px-2 py-0.5 rounded text-[10px] ml-1 font-black">
+                {postCategory}
+              </span>
+            )}
+          </>
+        )}
       </div>
       <div className="flex items-center gap-3">
         <h3 className="font-medium text-2xl text-slate-900">{isEdit ? "일정 수정" : "일정 등록"}</h3>
         {!isEdit && isFromPost && (
-          <button
-            onClick={applyAi}
-            className="flex items-center gap-1.5 px-3 py-1 bg-[#FFBC1F] text-[#1E325C] rounded-full text-[10px] font-black hover:brightness-105 transition-all shadow-sm"
-            disabled={saving}
-          >
-            <Sparkles size={12} className="fill-current" /> AI 추천 내용 한번에 적용하기
-          </button>
+          <div className="flex items-center gap-3 mt-1.5">
+            <button
+              onClick={toggleAi}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black transition-all shadow-sm ${isAiApplied
+                ? "bg-slate-200 text-slate-600 hover:bg-slate-300"
+                : "bg-[#FFBC1F] text-[#1E325C] hover:brightness-105"
+                }`}
+              disabled={saving}
+            >
+              {isAiApplied ? (
+                <>
+                  <RotateCcw size={12} /> 추천 내용 취소하기
+                </>
+              ) : (
+                <>
+                  <Sparkles size={12} className="fill-current" /> AI 추천 내용 한번에 등록하기
+                </>
+              )}
+            </button>
+            <span className="text-[10px] text-slate-400 font-bold">
+              AI로 등록한 내용은 수정할 수 있습니다.
+            </span>
+          </div>
         )}
       </div>
     </div>
   );
 
-  const headerActions = (
-    <button className="p-2 rounded-full hover:bg-slate-100 text-slate-400">
-      <Star size={20} />
-    </button>
-  );
-
   return (
     <ModalBase
       title={headerContent}
-      headerActions={headerActions}
       onClose={onClose}
       size="lg" // Increased size to match design spaciousness
       headerVariant="light"
     >
-      <div className="space-y-8">
+      <div className="space-y-6">
 
         {/* Title Input */}
         <div className="space-y-2">
@@ -379,48 +445,51 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
         </div>
 
         {/* Content Input */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center border-l-[3px] border-[#FFBC1F] pl-3 font-bold text-slate-700 h-4">
               상세 내용
             </div>
-            {isFromPost && <div className="text-[10px] text-slate-400">AI 요약 내용을 수정할 수 있습니다.</div>}
           </div>
 
           <textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
             placeholder="상세 내용을 입력하세요"
-            className="w-full p-6 bg-[#F8F9FC] border border-transparent rounded-2xl text-slate-600 font-medium focus:outline-none focus:bg-white focus:border-[#1E325C] focus:ring-1 focus:ring-[#1E325C] transition-all resize-none h-40 custom-scrollbar"
+            className="w-full p-5 bg-[#F8F9FC] border border-transparent rounded-2xl text-slate-600 font-medium focus:outline-none focus:bg-white focus:border-[#1E325C] focus:ring-1 focus:ring-[#1E325C] transition-all resize-none h-32 custom-scrollbar"
           />
         </div>
 
         {/* Color Selection */}
-        <div className="space-y-3">
+        <div className="space-y-2">
           <div className="flex items-center border-l-[3px] border-[#FFBC1F] pl-3 font-bold text-slate-700 h-4">
             일정 색상 선택
           </div>
-          <div className="bg-[#F8F9FC] p-4 py-3 rounded-2xl border border-slate-100 shadow-sm">
+          <div className="bg-[#F8F9FC] p-4 py-2 rounded-2xl border border-slate-100 shadow-sm">
             <ColorPicker value={color} onChange={setColor} colors={EVENT_COLORS} />
           </div>
         </div>
 
         {/* Time Setting Box */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="flex items-center border-l-[3px] border-[#FFBC1F] pl-3 font-bold text-slate-700 h-4">
             일정 기간 설정
           </div>
-          <div className="bg-[#F8F9FC] rounded-2xl p-8 border border-slate-100 shadow-sm relative z-30">
+          <div className="bg-[#F8F9FC] rounded-2xl p-6 border border-slate-100 shadow-sm relative z-30">
             <div className="flex flex-col md:flex-row items-stretch gap-6">
               {/* Start */}
               <div className="flex-1 space-y-4">
                 <div className="flex items-center gap-2 pl-1">
                   <span className="w-2 h-2 rounded-full bg-[#FFBC1F]" />
-                  <label className="text-xs font-black text-[#1E325C] uppercase tracking-wider">시작 일시</label>
+                  <label className="text-sm font-black text-[#1E325C] uppercase tracking-wider">시작 일시</label>
                 </div>
-                <div className="space-y-3">
-                  <CustomDatePicker value={startDate} onChange={setStartDate} color="#1E325C" />
-                  <CustomTimePicker value={startTime} onChange={setStartTime} color="#1E325C" />
+                <div className="flex gap-2">
+                  <div className="flex-[1.2]">
+                    <CustomDatePicker value={startDate} onChange={setStartDate} color="#1E325C" />
+                  </div>
+                  <div className="flex-[1]">
+                    <CustomTimePicker value={startTime} onChange={setStartTime} color="#1E325C" />
+                  </div>
                 </div>
               </div>
 
@@ -435,11 +504,15 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
               <div className="flex-1 space-y-4">
                 <div className="flex items-center gap-2 pl-1">
                   <span className="w-2 h-2 rounded-full bg-[#FFBC1F]" />
-                  <label className="text-xs font-black text-[#1E325C] uppercase tracking-wider">종료 일시</label>
+                  <label className="text-sm font-black text-[#1E325C] uppercase tracking-wider">종료 일시</label>
                 </div>
-                <div className="space-y-3">
-                  <CustomDatePicker value={endDate} onChange={setEndDate} color="#FFBC1F" />
-                  <CustomTimePicker value={endTime} onChange={setEndTime} color="#FFBC1F" />
+                <div className="flex gap-2">
+                  <div className="flex-[1.2]">
+                    <CustomDatePicker value={endDate} onChange={setEndDate} color="#FFBC1F" />
+                  </div>
+                  <div className="flex-[1]">
+                    <CustomTimePicker value={endTime} onChange={setEndTime} color="#FFBC1F" />
+                  </div>
                 </div>
               </div>
             </div>
@@ -447,7 +520,7 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
         </div>
 
         {/* Footer Actions */}
-        <div className="flex justify-end gap-3 pt-6 border-t border-slate-50">
+        <div className="flex justify-end gap-3 pt-4 border-t border-slate-50">
           <button
             onClick={submit}
             disabled={saving}

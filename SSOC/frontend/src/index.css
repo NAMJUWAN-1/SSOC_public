@@ -3,7 +3,7 @@
 /* globals.css already includes tailwindcss */
 @font-face {
     font-family: 'NanumSquareNeo';
-    src: url('/fonts/NanumSquareNeo-aLt.ttf') format('truetype');
+    src: url('/fonts/NanumSquareNeo-bRg.ttf') format('truetype');
     font-weight: normal;
     font-style: normal;
 }
@@ -43,4 +43,15 @@ body,
 
 .animate-shake {
     animation: shake 0.2s ease-in-out 3;
+}
+
+/* Pointer cursor for interactive elements */
+button:not(:disabled),
+a,
+[role="button"],
+summary,
+input[type="checkbox"],
+input[type="radio"],
+select {
+    cursor: pointer;
 }

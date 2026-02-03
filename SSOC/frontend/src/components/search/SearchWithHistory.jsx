@@ -48,8 +48,23 @@ export default function SearchWithHistory({
 
   const loadBackend = async () => {
     if (!userId) return;
-    const data = await listSearchLogs({ user_id: userId, limit });
-    setRecentBackend(data);
+
+    // Backend may keep duplicate keywords; UI should show unique terms only.
+    // Fetch more than `limit` to ensure we can display `limit` unique entries.
+    const fetchLimit = Math.max(limit * 5, limit);
+    const data = await listSearchLogs({ user_id: userId, limit: fetchLimit });
+
+    const seen = new Set();
+    const unique = [];
+    for (const item of data) {
+      const k = String(item?.keyword ?? "").trim().toLowerCase();
+      if (!k) continue;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      unique.push(item);
+      if (unique.length >= limit) break;
+    }
+    setRecentBackend(unique);
   };
 
   useEffect(() => {

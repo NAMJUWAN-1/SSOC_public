@@ -73,6 +73,77 @@ export default function ConfirmModal({ type, payload }) {
         isAlert: true,
       };
     }
+    if (type === "event_color_required") {
+      return {
+        icon: <AlertTriangle size={28} className="text-[#FFBC1F]" />,
+        title: "일정 색상 선택 필요",
+        desc: "일정 색상을 선택해주세요.",
+        confirmText: "확인",
+        confirmClass: "bg-[#1E325C] hover:bg-[#2a457a] text-white",
+        isAlert: true,
+      };
+    }
+    if (type === "event_title_required") {
+      return {
+        icon: <AlertTriangle size={28} className="text-[#FFBC1F]" />,
+        title: "일정 제목 입력 필요",
+        desc: "일정 제목을 입력해주세요.",
+        confirmText: "확인",
+        confirmClass: "bg-[#1E325C] hover:bg-[#2a457a] text-white",
+        isAlert: true,
+      };
+    }
+    if (type === "event_content_required") {
+      return {
+        icon: <AlertTriangle size={28} className="text-[#FFBC1F]" />,
+        title: "상세 내용 입력 필요",
+        desc: "상세 내용을 입력해주세요.",
+        confirmText: "확인",
+        confirmClass: "bg-[#1E325C] hover:bg-[#2a457a] text-white",
+        isAlert: true,
+      };
+    }
+    if (type === "event_date_required") {
+      return {
+        icon: <AlertTriangle size={28} className="text-[#FFBC1F]" />,
+        title: "일정 기간 선택 필요",
+        desc: "일정 기간을 선택해주세요.",
+        confirmText: "확인",
+        confirmClass: "bg-[#1E325C] hover:bg-[#2a457a] text-white",
+        isAlert: true,
+      };
+    }
+    if (type === "event_start_date_required") {
+      return {
+        icon: <AlertTriangle size={28} className="text-[#FFBC1F]" />,
+        title: "시작 일시 선택 필요",
+        desc: "시작날짜를 설정해주세요.",
+        confirmText: "확인",
+        confirmClass: "bg-[#1E325C] hover:bg-[#2a457a] text-white",
+        isAlert: true,
+      };
+    }
+    if (type === "event_end_date_required") {
+      return {
+        icon: <AlertTriangle size={28} className="text-[#FFBC1F]" />,
+        title: "종료 일시 선택 필요",
+        desc: "종료날짜를 설정해주세요.",
+        confirmText: "확인",
+        confirmClass: "bg-[#1E325C] hover:bg-[#2a457a] text-white",
+        isAlert: true,
+      };
+    }
+
+    if (type === "event_invalid_period") {
+      return {
+        icon: <AlertTriangle size={28} className="text-[#FFBC1F]" />,
+        title: "일정 기간 오류",
+        desc: "종료 일시는 시작 일시보다 빠를 수 없습니다.",
+        confirmText: "확인",
+        confirmClass: "bg-[#1E325C] hover:bg-[#2a457a] text-white",
+        isAlert: true,
+      };
+    }
 
     return {
       icon: <AlertTriangle size={28} className="text-red-600" />,
@@ -105,7 +176,18 @@ export default function ConfirmModal({ type, payload }) {
       actions.deleteAccount();
       return;
     }
-    if (type === "event_success" || type === "event_update_success" || type === "profile_success") {
+    if (
+      type === "event_success" ||
+      type === "event_update_success" ||
+      type === "profile_success" ||
+      type === "event_color_required" ||
+      type === "event_title_required" ||
+      type === "event_content_required" ||
+      type === "event_date_required" ||
+      type === "event_start_date_required" ||
+      type === "event_end_date_required" ||
+      type === "event_invalid_period"
+    ) {
       actions.closeConfirm();
       return;
     }
