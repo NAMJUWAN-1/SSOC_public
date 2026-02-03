@@ -1,5 +1,5 @@
 import React, { useRef } from "react";
-import { TrendingUp, ChevronLeft, ChevronRight, ArrowUpRight } from "lucide-react";
+import { TrendingUp, ChevronLeft, ChevronRight, ArrowUpRight, Star } from "lucide-react";
 import { cn } from "../../components/ui/utils";
 
 /**
@@ -7,6 +7,12 @@ import { cn } from "../../components/ui/utils";
  * Displays top posts with a badge and archiving stats.
  * Includes its own header and navigation controls.
  */
+function snippet100(text) {
+  const t = String(text || "").replace(/\s+/g, " ").trim();
+  if (!t) return "";
+  return t.length > 100 ? t.slice(0, 100) + "..." : t;
+}
+
 export default function RankingCarousel({ posts = [], onOpen }) {
   const scrollRef = useRef(null);
 
@@ -50,43 +56,54 @@ export default function RankingCarousel({ posts = [], onOpen }) {
       </div>
 
       {/* Carousel Container */}
-      {/* Added pt-4 to accommodate the overlapping badge */}
-      <div
-        ref={scrollRef}
-        className="flex space-x-6 overflow-x-auto pb-4 pt-4 snap-x scrollbar-hide"
-      >
-        {posts.map((p, idx) => {
-          const id = p.post_id ?? p.id;
-          const headline = p.ai_title ?? p.title ?? "(제목 없음)";
-          // Mocking archiving count for visual match since actual data might not exist in this snippet
-          // Using random numbers for demo or p.views if available as a proxy
-          const archivingCount = p.views ? p.views * 12 : 120 + idx * 30;
-          const dateStr = p.created_at ? new Date(p.created_at).toLocaleDateString() : "2026. 1. 1.";
+      <div className="bg-slate-50/50 rounded-[2rem] p-6">
+        <div
+          ref={scrollRef}
+          className="flex space-x-6 overflow-x-auto pb-4 pt-4 snap-x scrollbar-hide"
+        >
+          {posts.map((p, idx) => {
+            const id = p.post_id ?? p.id;
+            const headline = p.ai_title ?? p.title ?? "(제목 없음)";
+            const content = p.display_content ?? p.displayContent ?? p.content ?? p.rawContent ?? "";
+            // Mocking archiving count for visual match since actual data might not exist in this snippet
+            // Using random numbers for demo or p.views if available as a proxy
+            const archivingCount = p.views ? p.views * 12 : 120 + idx * 30;
+            const dateStr = p.created_at ? new Date(p.created_at).toLocaleDateString() : "2026. 1. 1.";
 
-          return (
-            <div
-              key={id}
-              onClick={() => onOpen?.(p)}
-              className="flex-shrink-0 w-[320px] snap-start bg-white p-6 rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-slate-100 hover:shadow-lg transition-all cursor-pointer relative mt-2"
-            >
-              {/* Ranking Badge - Overlapping Top Left */}
-              <div className="absolute -top-4 left-6 w-10 h-10 rounded-full bg-[#FFBC1F] text-[#1E325C] flex items-center justify-center font-black text-lg shadow-md z-10">
-                {idx + 1}
-              </div>
+            return (
+              <div
+                key={id}
+                onClick={() => onOpen?.(p)}
+                className="flex-shrink-0 w-[320px] snap-start bg-white p-6 rounded-2xl shadow-md border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer relative mt-2 active:scale-95"
+              >
+                {/* Ranking Badge - Overlapping Top Left */}
+                <div className="absolute -top-4 left-6 w-10 h-10 rounded-full bg-[#FFBC1F] text-[#1E325C] flex items-center justify-center font-black text-lg shadow-md z-10">
+                  {idx + 1}
+                </div>
 
-              <div className="mt-4 mb-3">
-                <h3 className="font-bold text-slate-800 text-lg line-clamp-2 leading-snug h-14">
-                  {headline}
-                </h3>
-              </div>
+                <div className="mt-4 mb-3">
+                  <h3 className="font-bold text-slate-800 text-lg line-clamp-2 leading-snug h-14">
+                    {headline}
+                  </h3>
+                </div>
 
-              {/* Info */}
-              <div className="text-sm text-slate-400 font-medium">
-                {dateStr}
+                {content ? (
+                  <p className="mb-2 text-sm text-slate-500 leading-relaxed line-clamp-2 h-10">
+                    {snippet100(content)}
+                  </p>
+                ) : (
+                  <div className="mb-2 h-10" />
+                )}
+
+                {/* Scrap Count Display */}
+                <div className="flex items-center gap-1.5 text-[#FF3B30] font-black text-xs">
+                  <TrendingUp size={12} />
+                  <span>아카이빙 {p.scrap_count ?? 0}회</span>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </section>
   );

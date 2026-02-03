@@ -247,6 +247,10 @@ export default function CalendarMonth({
                                 return <div key={li} className="h-5 mx-2" />;
 
                               const pos = getEventPosition(ev, date);
+
+                              // ✅ 매월 1일에는 무조건 제목 표시 (스타일은 원래대로 유지하여 이어짐 표현)
+                              const showTitle = pos === "start" || pos === "single" || date.getDate() === 1;
+
                               let chip =
                                 "h-5 text-[9px] font-black flex items-center px-2 truncate opacity-80 transition-all hover:brightness-105";
 
@@ -267,9 +271,7 @@ export default function CalendarMonth({
                                     accentRight: pos === "end" || pos === "single",
                                   })}
                                 >
-                                  {pos === "start" || pos === "single"
-                                    ? ev.title
-                                    : "\u00A0"}
+                                  {showTitle ? ev.title : "\u00A0"}
                                 </div>
                               );
                             })}
@@ -293,6 +295,10 @@ export default function CalendarMonth({
                                 return <div key={li} className="h-5 mx-2" />;
 
                               const pos = getEventPosition(ev, date);
+
+                              // ✅ 매월 1일에는 무조건 제목 표시 (스타일은 원래대로 유지하여 이어짐 표현) - 확장 뷰
+                              const showTitle = pos === "start" || pos === "single" || date.getDate() === 1;
+
                               let chip =
                                 "h-5 text-[9px] font-black flex items-center px-2 truncate transition-all hover:brightness-105 cursor-pointer";
 
@@ -320,9 +326,7 @@ export default function CalendarMonth({
                                     onOpenEvent(ev);
                                   }}
                                 >
-                                  {pos === "start" || pos === "single"
-                                    ? ev.title
-                                    : "\u00A0"}
+                                  {showTitle ? ev.title : "\u00A0"}
                                 </div>
                               );
                             })}

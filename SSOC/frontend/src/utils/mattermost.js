@@ -1,104 +1,90 @@
-// src/utils/mattermost.js
-// SSAFY Mattermost permalink helper
-// Expected format: https://meeting.ssafy.com/{board_id}/pl/{mm_post_id}
+/**
+ * Mattermost permalink helper
+ *
+ * Requirement:
+ *   https://meeting.ssafy.com/${mm_board_id}/pl/${post_mm_id}
+ *
+ * Notes
+ * - Backend / DB field names can vary (mm_post_id vs post_mm_id, channel_id vs mm_channel_id, etc.)
+ * - Some payloads also include channel_id; we prioritize mm_board_id for the first path segment.
+ */
 
-const MM_BASE = "https://meeting.ssafy.com";
+const DEFAULT_BASE = "https://meeting.ssafy.com";
 
-function cleanId(v) {
-  if (v == null) return null;
-  let s = String(v).trim();
-  if (!s) return null;
-  // strip possible prefixes
-  s = s.replace(/^\/pl\//, "").replace(/^pl\//, "");
-  return s || null;
+function normalizeBase(base) {
+  const b = String(base || DEFAULT_BASE).trim();
+  return b.replace(/\/$/, "");
 }
 
-function firstNonEmpty(...vals) {
+function firstDefined(...vals) {
   for (const v of vals) {
-    if (v == null) continue;
-    const s = String(v).trim();
-    if (s) return s;
+    if (v === 0) return 0;
+    if (v !== undefined && v !== null && String(v).trim() !== "") return v;
   }
   return null;
 }
 
-function ensureAbsolute(...urls) {
-  const s = firstNonEmpty(...urls);
-  if (!s) return null;
-  if (/^https?:\/\//i.test(s)) return s;
-  if (s.startsWith("/")) return `${MM_BASE}${s}`;
-  // Sometimes backend may send a path without a leading slash: {board_id}/pl/{post_id}
-  if (/^[^/]+\/pl\//i.test(s)) return `${MM_BASE}/${s}`;
-  return null;
-}
-
-export function buildMattermostPermalink({ boardId, mmPostId }) {
-  const b = cleanId(boardId);
-  const p = cleanId(mmPostId);
-  if (!b || !p) return null;
-  return `${MM_BASE}/${b}/pl/${p}`;
+/**
+ * Build a permalink.
+ *
+ * Accepted key aliases:
+ * - channelId, channel_id, mm_channel_id
+ * - mmPostId, mm_post_id, post_mm_id
+ * - legacy: boardId, mm_board_id (as fallback for channel id)
+ */
+export function buildMattermostPermalink({
+  base,
+  channelId,
+  channel_id,
+  mm_channel_id,
+  mmChannelId,
+  // legacy fallbacks
+  boardId,
+  board_id,
+  mm_board_id,
+  mmBoardId,
+  // post id
+  mmPostId,
+  mm_post_id,
+  post_mm_id,
+  postMmId,
+}) {
+  const b = normalizeBase(base);
+  const seg = firstDefined(mm_board_id, mmBoardId, boardId, board_id, channelId, channel_id, mm_channel_id, mmChannelId);
+  const pid = firstDefined(mmPostId, mm_post_id, post_mm_id, postMmId);
+  if (!seg || !pid) return null;
+  return `${b}/${encodeURIComponent(String(seg))}/pl/${encodeURIComponent(String(pid))}`;
 }
 
 /**
- * getMattermostLink(obj)
- * - Prefer building from ids when available.
- * - Otherwise fall back to provided URL-like fields.
+ * Robustly derive a Mattermost link from any post-like / event-like payload.
  */
 export function getMattermostLink(obj) {
   if (!obj) return null;
 
-  // 1. Try fields that might hold a full link
-  const direct = firstNonEmpty(
-    obj.mm_link,
-    obj.mmLink,
-    obj.mattermost_link,
-    obj.mattermostLink,
-    obj.mm_post_url,
-    obj.mmPostUrl,
-    obj.mm_post_permalink,
-    obj.mmPostPermalink,
-    obj.mm_post_link,
-    obj.mmPostLink,
-    obj.permalink,
-    obj.link,
-    obj.url
-  );
-  const absoluteDirect = ensureAbsolute(direct);
-  if (absoluteDirect && absoluteDirect.includes("meeting.ssafy.com")) return absoluteDirect;
-
-  // 2. Try building from ids with exhaustive field name checks
-  const boardId = firstNonEmpty(
+  const segmentId = firstDefined(
+    // Prefer mm_board_id (SSAFY meeting permalink uses board segment)
     obj.mm_board_id,
-    obj.mmBoardId,
     obj.board?.mm_board_id,
-    obj.board?.mmBoardId,
+    obj.channel?.board?.mm_board_id,
+    obj.mmBoardId,
     obj.board_id,
     obj.boardId,
-    obj.board?.board_id,
-    obj.board?.boardId,
-    obj.board?.id,
-    obj.team_id,
-    obj.teamId,
-    obj.mm_team_id,
-    obj.mmTeamId,
-    typeof obj.board === "string" ? obj.board : null
+    // fallback
+    obj.channel_id,
+    obj.channelId,
+    obj.mm_channel_id,
+    obj.mmChannelId
   );
 
-  const mmPostId = firstNonEmpty(
-    obj.mm_post_id,
-    obj.mmPostId,
-    obj.mattermost_post_id,
-    obj.mattermostPostId,
+  const mmPostId = firstDefined(
     obj.post_mm_id,
     obj.postMmId,
+    obj.mm_post_id,
+    obj.mmPostId,
     obj.mm_postid,
-    obj.mmPostid,
-    obj.post_id, // Last resort if internal ID is used as MM ID
-    obj.id
+    obj.mm_postId
   );
 
-  const computed = buildMattermostPermalink({ boardId, mmPostId });
-
-  // Prefer computed (ID-based) if valid meeting.ssafy link; else use direct absolute link
-  return computed || absoluteDirect;
+  return buildMattermostPermalink({ mm_board_id: segmentId, post_mm_id: mmPostId });
 }

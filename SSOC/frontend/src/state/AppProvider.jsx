@@ -120,10 +120,22 @@ const initialState = {
     profileSetup: { open: false, force: false, redirectTo: null },
     confirm: { open: false, type: null, payload: null },
   },
+  dashboardCache: {
+    scopePosts: [],
+    rankingPosts: [],
+    lastUpdated: null,
+  },
 };
 
 function reducer(state, action) {
   switch (action.type) {
+    case "APP/RESET": {
+      return {
+        ...initialState,
+        loading: false,
+        auth: { ...initialState.auth, status: "ready" },
+      };
+    }
     case "APP/LOADING": {
       return {
         ...state,
@@ -202,6 +214,20 @@ function reducer(state, action) {
         },
       };
     }
+    case "MODAL/UPDATE_POST_DETAIL_PAYLOAD": {
+      // Keep modal open, only replace payload fields
+      if (!state.modals?.postDetail?.open) return state;
+      return {
+        ...state,
+        modals: {
+          ...state.modals,
+          postDetail: {
+            ...state.modals.postDetail,
+            payload: { ...(state.modals.postDetail.payload || {}), ...(action.payload || {}) },
+          },
+        },
+      };
+    }
     case "MODAL/CLOSE_POST_DETAIL": {
       return {
         ...state,
@@ -264,6 +290,16 @@ function reducer(state, action) {
     }
     case "MODAL/CLOSE_CONFIRM": {
       return { ...state, modals: { ...state.modals, confirm: { open: false, type: null, payload: null } } };
+    }
+    case "DASHBOARD/SET_CACHE": {
+      return {
+        ...state,
+        dashboardCache: {
+          ...state.dashboardCache,
+          ...action.payload,
+          lastUpdated: new Date().toISOString(),
+        },
+      };
     }
 
     default:
@@ -393,6 +429,13 @@ export function AppProvider({ children }) {
       dispatch({ type: "AUTH/SET", isAuthenticated: true, user });
       dispatch({ type: "PROFILE/SET_COMPLETED", completed: !!user.profile_image_url });
 
+      // Immediate Archive Sync
+      try {
+        await loadMyArchives(id);
+      } catch (e) {
+        console.warn("[archives] initial load failed during login:", e);
+      }
+
       if (!user.profile_image_url) {
         dispatch({ type: "MODAL/OPEN_PROFILE_SETUP", force: true, redirectTo: null });
       }
@@ -409,8 +452,7 @@ export function AppProvider({ children }) {
   const logout = async () => {
     refreshTimer.current?.clear();
     await logoutBackend();
-    dispatch({ type: "AUTH/SET", isAuthenticated: false, user: { ...EMPTY_USER } });
-    dispatch({ type: "PROFILE/SET_COMPLETED", completed: false });
+    dispatch({ type: "APP/RESET" });
   };
 
   const deleteAccount = async () => {
@@ -439,11 +481,7 @@ export function AppProvider({ children }) {
 
       for (const a of list) {
         const postObj = a?.post || a;
-        const postId =
-          postObj?.post_id ??
-          postObj?.id ??
-          postObj?.postId ??
-          null;
+        const postId = postObj?.post_id ?? postObj?.id ?? postObj?.postId ?? null;
         const archiveId = a?.archive_id ?? a?.archiveId ?? a?.id ?? null;
 
         if (postId != null) {
@@ -451,7 +489,6 @@ export function AppProvider({ children }) {
           set.add(pid);
           if (archiveId != null) map[pid] = archiveId;
 
-          // Attach archive metadata to post object
           const enrichedPost = {
             ...postObj,
             archive_id: archiveId,
@@ -468,89 +505,134 @@ export function AppProvider({ children }) {
         archiveIdByPostId: map,
         archiveCount: set.size,
       });
+
+      return { set, map, archivedPosts };
     } catch (e) {
-      // backend 미구현 상태에서도 앱이 동작하도록 무시
       console.warn("[archives] loadMyArchives failed:", e?.message || e);
     }
-
-    // count endpoint(선택)
-    try {
-      const c = await countMyArchives({ user_id: userId });
-      dispatch({ type: "ARCHIVES/SET_COUNT", count: c });
-    } catch {
-      // ignore
-    }
+    return null;
   };
 
-  const toggleArchive = async (postId) => {
-    if (postId == null) return;
-    const pid = String(postId);
+  const toggleArchive = async (postOrId) => {
+    if (!postOrId) return;
+    const postObj = typeof postOrId === "object" ? postOrId : null;
+    const pid = String(postOrId?.post_id ?? postOrId?.id ?? postOrId?.postId ?? postOrId);
     const userId = getCurrentUserId();
+    if (!userId) return;
 
-    // optimistic UI
-    const next = new Set(state.archives);
-    const wasArchived = next.has(pid);
-    if (wasArchived) next.delete(pid);
-    else next.add(pid);
+    // Snapshot for rollback
+    const prevArchives = new Set(state.archives);
+    const prevArchivedPosts = [...(state.archivedPosts || [])];
+    const prevMap = { ...(state.archiveIdByPostId || {}) };
+    const wasArchived = prevArchives.has(pid);
+
+    // 1. Optimistic UI Update
+    const nextArchives = new Set(prevArchives);
+    let nextArchivedPosts = [...prevArchivedPosts];
+    const nextMap = { ...prevMap };
+
+    if (wasArchived) {
+      nextArchives.delete(pid);
+      nextArchivedPosts = nextArchivedPosts.filter(p => String(p.post_id ?? p.id ?? p.postId) !== pid);
+      delete nextMap[pid];
+    } else {
+      nextArchives.add(pid);
+      if (postObj) {
+        nextArchivedPosts.unshift({ ...postObj, is_archived: true, archive_created_at: new Date().toISOString() });
+      }
+    }
 
     dispatch({
       type: "ARCHIVES/SET",
-      archives: next,
-      archiveIdByPostId: state.archiveIdByPostId,
-      archiveCount: next.size,
+      archives: nextArchives,
+      archivedPosts: nextArchivedPosts,
+      archiveIdByPostId: nextMap,
+      archiveCount: nextArchives.size,
     });
 
-    if (!userId) return;
+    const syncModal = (isArchived) => {
+      const m = state.modals?.postDetail;
+      if (m?.open && String(m?.payload?.post_id ?? m?.payload?.id) === pid) {
+        dispatch({ type: "MODAL/UPDATE_POST_DETAIL_PAYLOAD", payload: { is_archived: isArchived } });
+      }
+    };
+    syncModal(!wasArchived);
 
     try {
       if (!wasArchived) {
+        // Create
         const created = await createArchive({ user_id: userId, post_id: pid });
-        const archiveId = created?.archive_id ?? created?.archiveId ?? created?.id ?? null;
-        if (archiveId != null) {
-          dispatch({ type: "ARCHIVES/SET_MAP_ITEM", postId: pid, archiveId });
-        }
-        // refresh list to get full post objects for MyPage
-        await loadMyArchives(userId);
-        return;
-      }
-
-      // unarchive
-      let archiveId = state.archiveIdByPostId?.[pid];
-      if (!archiveId) {
-        // fallback: refresh list and try again
-        const list = await listMyArchives({ user_id: userId });
-        const found = list.find((a) => String(a?.post_id ?? a?.postId) === pid);
-        archiveId = found?.archive_id ?? found?.archiveId ?? found?.id ?? null;
-        if (archiveId) dispatch({ type: "ARCHIVES/SET_MAP_ITEM", postId: pid, archiveId });
-      }
-
-      if (archiveId) {
-        await deleteArchive({ user_id: userId, archive_id: archiveId });
-        // refresh list
-        await loadMyArchives(userId);
+        // Since backend might not return archive_id, we MUST fetch to get it for future deletion
+        // But we wait slightly to avoid race condition on server DB write
+        setTimeout(() => loadMyArchives(userId), 500);
       } else {
-        console.warn("[archives] missing archive_id for post:", pid);
+        // Delete
+        let aid = prevMap[pid];
+        if (!aid) {
+          // Fallback: fetch list to find ID if missing
+          const list = await listMyArchives({ user_id: userId });
+          const found = list.find(a => String(a?.post_id ?? a?.post?.post_id) === pid);
+          aid = found?.archive_id ?? found?.id;
+        }
+        if (aid) {
+          await deleteArchive({ user_id: userId, archive_id: aid });
+          // No need for immediate full refetch on delete, our local state is clean
+        }
       }
     } catch (e) {
-      console.warn("[archives] toggleArchive failed:", e?.message || e);
-
-      // rollback optimistic UI on error
-      const rollback = new Set(state.archives);
+      console.error("[archives] toggleArchive failed:", e);
+      // Rollback
       dispatch({
         type: "ARCHIVES/SET",
-        archives: rollback,
-        archiveIdByPostId: state.archiveIdByPostId,
-        archiveCount: rollback.size,
+        archives: prevArchives,
+        archivedPosts: prevArchivedPosts,
+        archiveIdByPostId: prevMap,
+        archiveCount: prevArchives.size,
       });
+      syncModal(wasArchived);
+      alert("북마크 처리에 실패했습니다. 잠시 후 다시 시도해주세요.");
     }
   };
 
   // Post detail modal
-  const openPostDetailFromPost = (post) => {
-    dispatch({ type: "MODAL/OPEN_POST_DETAIL", mode: "post", payload: post });
+  const openPostDetailFromPost = async (post) => {
+    const pid = post?.post_id ?? post?.id ?? post?.postId ?? null;
+    if (!pid) {
+      dispatch({ type: "MODAL/OPEN_POST_DETAIL", mode: "post", payload: post });
+      return;
+    }
+
+    try {
+      const detail = await getPostForCalendar({ post_id: pid });
+      dispatch({ type: "MODAL/OPEN_POST_DETAIL", mode: "post", payload: detail || post });
+    } catch {
+      dispatch({ type: "MODAL/OPEN_POST_DETAIL", mode: "post", payload: post });
+    }
   };
-  const openPostDetailFromEvent = (ev) => {
-    dispatch({ type: "MODAL/OPEN_POST_DETAIL", mode: "event", payload: ev });
+  const openPostDetailFromEvent = async (ev) => {
+    if (!ev) {
+      dispatch({ type: "MODAL/OPEN_POST_DETAIL", mode: "event", payload: ev });
+      return;
+    }
+
+    // If the calendar event is derived from a post, try to fetch the latest post detail
+    // so the detail modal can show board/channel metadata consistently.
+    const pid = ev?.postId ?? ev?.post_id ?? null;
+    if (!pid) {
+      dispatch({ type: "MODAL/OPEN_POST_DETAIL", mode: "event", payload: ev });
+      return;
+    }
+
+    try {
+      const detail = await getPostForCalendar({ post_id: pid });
+      dispatch({
+        type: "MODAL/OPEN_POST_DETAIL",
+        mode: "event",
+        payload: { ...ev, linkedPost: detail || null },
+      });
+    } catch {
+      dispatch({ type: "MODAL/OPEN_POST_DETAIL", mode: "event", payload: ev });
+    }
   };
   const closePostDetail = () => dispatch({ type: "MODAL/CLOSE_POST_DETAIL" });
 
@@ -610,6 +692,8 @@ export function AppProvider({ children }) {
         category: newEvent.category,
         color: newEvent.color,
         mm_link: newEvent.mmLink,
+        board_name: newEvent.boardName || newEvent.board_name,
+        channel_name: newEvent.channelName || newEvent.channel_name,
       });
 
       // Replace local temp event with saved id (best-effort)
@@ -746,6 +830,8 @@ export function AppProvider({ children }) {
 
       openConfirm,
       closeConfirm,
+
+      setDashboardCache: (payload) => dispatch({ type: "DASHBOARD/SET_CACHE", payload }),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [state.archives, state.archiveIdByPostId, state.calendarEvents, state.isAuthenticated, state.user]

@@ -1,5 +1,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Filter, LogOut, Settings, Trash2, Bell, Calendar as CalendarIcon, Search, User, X, Check } from "lucide-react";
+import { fetchWithAuth } from "../api/fetchWithAuth";
+import { loginWithMattermost, refreshAccessToken, logoutBackend } from "../api/authApi";
 import { useApp } from "../state/AppProvider";
 
 import BoardChannelFilter from "../components/filter/BoardChannelFilter";
@@ -17,6 +19,14 @@ const AVATAR_LIST = [
   "/avatars/7.png",
   "/avatars/8.png"
 ];
+
+function normalizeAvatarUrl(u) {
+  const s = String(u ?? "").trim();
+  if (!s) return "";
+  if (s.startsWith("http://") || s.startsWith("https://")) return s;
+  if (s.startsWith("/")) return s;
+  return `/${s}`;
+}
 
 export default function MyPage() {
   const { state, actions } = useApp();
@@ -40,12 +50,58 @@ export default function MyPage() {
     return Array.from(map.values());
   }, [state.auth.user]);
 
+  // Create a mapping of channel_id to board_id for robust filtering when backend information is missing
+  const channelToBoardMap = useMemo(() => {
+    const map = new Map();
+    const userChannels = state.auth.user?.channels || [];
+    for (const ch of userChannels) {
+      if (ch.channel_id && ch.board?.board_id) {
+        map.set(ch.channel_id, ch.board.board_id);
+      }
+    }
+    return map;
+  }, [state.auth.user]);
+
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedBoard, setSelectedBoard] = useState(null);
   const [selectedChannels, setSelectedChannels] = useState([]);
   const ITEMS_PER_PAGE = 9; // Grid (3x3)
+
+  // Vector search state
+  const [searchResults, setSearchResults] = useState(null);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Search effect (Debounce)
+  useEffect(() => {
+    if (!q.trim()) {
+      setSearchResults(null);
+      setIsSearching(false);
+      return;
+    }
+
+    const run = async () => {
+      setIsSearching(true);
+      try {
+        const params = new URLSearchParams();
+        params.set("keyword", q.trim());
+        const res = await fetchWithAuth(apiUrl(`/api/posts/?${params.toString()}`), { method: "GET" });
+        if (res.ok) {
+          const data = await res.json();
+          setSearchResults(Array.isArray(data) ? data : []);
+        }
+      } catch (e) {
+        console.error("Vector search failed", e);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    const timer = setTimeout(run, 300);
+    return () => clearTimeout(timer);
+  }, [q]);
 
   // '남은 일정'은 현재 시간 기준으로 계산 (1분마다 갱신)
   const [nowTick, setNowTick] = useState(Date.now());
@@ -63,7 +119,7 @@ export default function MyPage() {
 
   const handleStartEdit = () => {
     setEditNickname(state.auth.user.nickname || "");
-    setEditAvatar(state.auth.user.profile_image_url || "");
+    setEditAvatar(normalizeAvatarUrl(state.auth.user.profile_image_url || state.auth.user.profile_image || ""));
     setIsEditing(true);
   };
 
@@ -85,7 +141,7 @@ export default function MyPage() {
     try {
       await actions.saveProfile({
         nickname: editNickname,
-        profile_image_url: editAvatar,
+        profile_image_url: normalizeAvatarUrl(editAvatar),
       });
       setIsEditing(false);
       actions.openConfirm("profile_success");
@@ -99,21 +155,47 @@ export default function MyPage() {
   }, [state.archivedPosts]);
 
   const filtered = useMemo(() => {
-    const ql = q.toLowerCase();
-    return myArchivedPosts.filter((p) => {
-      const title = String(p.ai_title ?? p.title ?? "").toLowerCase();
-      const matchQ = title.includes(ql);
+    let sourceList = myArchivedPosts;
 
-      const pidBoard = p.board_id ?? p.boardId;
+    // 만약 검색어가 있다면, 백엔드 검색 결과를 우선 사용 (벡터 검색)
+    // 단, 검색 결과 중 '내가 아카이빙한 포스트'만 남겨야 함 (교집합)
+    if (q.trim()) {
+      if (!searchResults) {
+        // 로딩 중이거나 결과가 없으면 빈 리스트 (Strict Backend)
+        sourceList = [];
+      } else {
+        // searchResults에 있는 포스트 중, 내 아카이브(state.archives)에 있는 것만 필터
+        const myArchiveMap = new Map(myArchivedPosts.map(p => [String(p.post_id ?? p.id), p]));
+
+        sourceList = searchResults
+          .filter(p => state.archives.has(String(p.post_id ?? p.id)))
+          .map(p => {
+            const pid = String(p.post_id ?? p.id);
+            const original = myArchiveMap.get(pid);
+            // 검색 결과의 정렬 순서(유사도) 유지 + 원본 아카이브 데이터(날짜 등) 병합
+            return original ? { ...p, ...original } : p;
+          });
+      }
+    }
+
+    // Board/Channel Filter 적용
+    return sourceList.filter((p) => {
+      let pidBoard = p.board_id ?? p.boardId;
       const pidChannel = p.channel_id ?? p.channelId;
+
+      // Fallback: If board_id is missing, resolve it from the channel map
+      if (pidBoard === undefined || pidBoard === null) {
+        pidBoard = channelToBoardMap.get(pidChannel);
+      }
 
       let matchFilter = true;
       if (selectedChannels.length > 0) matchFilter = selectedChannels.includes(pidChannel);
-      else if (selectedBoard) matchFilter = pidBoard === selectedBoard;
+      else if (selectedBoard) matchFilter = (pidBoard === selectedBoard);
 
-      return matchQ && matchFilter;
+      return matchFilter;
     });
-  }, [myArchivedPosts, q, selectedBoard, selectedChannels]);
+  }, [myArchivedPosts, q, searchResults, selectedBoard, selectedChannels, state.archives, channelToBoardMap]);
+
 
   useEffect(() => setPage(1), [q, selectedBoard, selectedChannels]);
 
@@ -178,137 +260,140 @@ export default function MyPage() {
     <div className="space-y-6 pb-20">
 
       {/* Top Section: Unified Card (Switch between View and Edit) */}
-      <div className="bg-white rounded-[2rem] p-10 shadow-sm border border-slate-100 min-h-[300px] flex flex-col relative transition-all duration-500 apple-bezier overflow-hidden">
+      <div className="bg-white rounded-[2rem] p-10 shadow-sm border border-slate-100 min-h-[220px] flex flex-col relative transition-all duration-500 apple-bezier overflow-hidden">
 
         {!isEditing ? (
           <div key="view" className="animate-apple-fade flex flex-col justify-center h-full">
             {/* Header Title inside card */}
-            <div className="absolute top-10 left-10 flex items-center">
+            <div className="flex items-center mb-6">
               <div className="w-1.5 h-6 bg-[#FFBC1F] rounded-full mr-3" />
               <h2 className="text-3xl font-black text-slate-900 tracking-tighter">프로필</h2>
             </div>
 
-            <div className="mt-12 flex flex-col xl:flex-row items-center xl:items-end justify-between gap-10">
-              {/* Left: Profile Info */}
-              <div className="flex flex-col md:flex-row items-center gap-8 px-4 xl:px-0">
-                {/* Avatar */}
-                <div className="shrink-0 rounded-[3rem] p-1 border-4 border-white shadow-xl overflow-hidden bg-slate-50">
-                  <div className="w-48 h-48">
-                    {state.auth.user.profile_image_url ? (
-                      <img
-                        src={state.auth.user.profile_image_url}
-                        alt="profile"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-slate-100 flex items-center justify-center text-slate-300">
-                        <User size={80} fill="currentColor" />
-                      </div>
-                    )}
+            <div className="bg-slate-50/50 rounded-[2rem] p-6 lg:p-8">
+              <div className="flex flex-col xl:flex-row items-center xl:items-center justify-between gap-6">
+                {/* Left: Profile Info */}
+                <div className="flex flex-col md:flex-row items-center gap-8">
+                  {/* Avatar */}
+                  <div className="shrink-0 rounded-[3rem] p-1 border-4 border-white shadow-xl overflow-hidden bg-white">
+                    <div className="w-48 h-48">
+                      {state.auth.user.profile_image_url ? (
+                        <img
+                          src={normalizeAvatarUrl(state.auth.user.profile_image_url)}
+                          alt="profile"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-slate-100 flex items-center justify-center text-slate-300">
+                          <User size={80} fill="currentColor" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Info & Actions */}
+                  <div className="text-center md:text-left">
+                    <p className="text-xs font-bold text-slate-400 mb-1 ml-1 text-slate-400">닉네임</p>
+                    <h3 className="text-3xl font-black text-slate-800 tracking-tight mb-1">
+                      {state.auth.user.nickname || "닉네임 없음"}
+                    </h3>
+                    <p className="text-sm font-bold text-slate-400 mb-5 ml-1">SSAFY 14기</p>
+
+                    <div className="flex flex-nowrap justify-center md:justify-start gap-3 mt-2 overflow-x-auto no-scrollbar">
+                      <button
+                        onClick={handleStartEdit}
+                        className="px-6 py-3 bg-[#1E325C] text-white rounded-xl text-sm font-black shadow-lg shadow-blue-900/10 hover:brightness-110 transition-all active:scale-95 flex items-center gap-2 group"
+                      >
+                        <Settings size={16} className="group-hover:rotate-45 transition-transform duration-300" /> 프로필 수정
+                      </button>
+                      <button
+                        onClick={() => actions.openConfirm("logout", null)}
+                        className="px-6 py-3 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-black shadow-sm hover:bg-slate-50 transition-all active:scale-95 flex items-center gap-2"
+                      >
+                        <LogOut size={16} /> 로그아웃
+                      </button>
+                      <button
+                        onClick={() => actions.openConfirm("delete_account", null)}
+                        className="px-6 py-3 bg-red-50 text-red-500 rounded-xl text-sm font-black hover:bg-red-100/50 transition-all active:scale-95 flex items-center gap-2"
+                      >
+                        <Trash2 size={16} /> 회원 탈퇴
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                {/* Info & Actions */}
-                <div className="text-center md:text-left">
-                  <p className="text-xs font-bold text-slate-400 mb-1 ml-1">닉네임</p>
-                  <h3 className="text-3xl font-black text-slate-800 tracking-tight mb-1">
-                    {state.auth.user.nickname || "닉네임 없음"}
-                  </h3>
-                  <p className="text-sm font-bold text-slate-400 mb-5 ml-1">SSAFY 14기</p>
-
-                  <div className="flex flex-wrap justify-center md:justify-start gap-3 mt-2">
-                    <button
-                      onClick={handleStartEdit}
-                      className="px-6 py-3 bg-[#1E325C] text-white rounded-xl text-sm font-black shadow-lg shadow-blue-900/10 hover:brightness-110 transition-all active:scale-95 flex items-center gap-2 group"
-                    >
-                      <Settings size={16} className="group-hover:rotate-45 transition-transform duration-300" /> 프로필 수정
-                    </button>
-                    <button
-                      onClick={() => actions.openConfirm("logout", null)}
-                      className="px-6 py-3 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-black shadow-sm hover:bg-slate-50 transition-all active:scale-95 flex items-center gap-2"
-                    >
-                      <LogOut size={16} /> 로그아웃
-                    </button>
-                    <button
-                      onClick={() => actions.openConfirm("delete_account", null)}
-                      className="px-6 py-3 bg-red-50 text-red-500 rounded-xl text-sm font-black hover:bg-red-100/50 transition-all active:scale-95 flex items-center gap-2"
-                    >
-                      <Trash2 size={16} /> 회원 탈퇴
-                    </button>
+                {/* Right: Stats Cards */}
+                <div className="flex gap-4 w-full xl:w-auto justify-center xl:justify-end">
+                  {/* Stats Card 1 */}
+                  <div className="w-[160px] h-[120px] border border-slate-100 rounded-[1.5rem] flex flex-col items-center justify-center bg-white shadow-md shrink-0">
+                    <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-600 mb-2">
+                      <CalendarIcon size={20} />
+                    </div>
+                    <p className="text-[10px] font-bold text-slate-400 mb-0.5">금일 아카이빙한 일정</p>
+                    <p className="text-2xl font-black text-slate-800">
+                      {upcomingCount} <span className="text-xs font-bold text-slate-400">개</span>
+                    </p>
                   </div>
-                </div>
-              </div>
 
-              {/* Right: Stats Cards */}
-              <div className="flex gap-4 w-full xl:w-auto justify-center xl:justify-end">
-                {/* Stats Card 1 */}
-                <div className="w-[160px] h-[120px] border border-slate-100 rounded-[1.5rem] flex flex-col items-center justify-center bg-white shadow-sm shrink-0">
-                  <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-600 mb-2">
-                    <CalendarIcon size={20} />
+                  {/* Stats Card 2 */}
+                  <div className="w-[160px] h-[120px] border border-slate-100 rounded-[1.5rem] flex flex-col items-center justify-center bg-white shadow-md shrink-0">
+                    <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-600 mb-2">
+                      <Bell size={20} />
+                    </div>
+                    <p className="text-[10px] font-bold text-slate-400 mb-0.5">아카이빙한 총 공지</p>
+                    <p className="text-2xl font-black text-slate-800">
+                      {myArchiveCount} <span className="text-xs font-bold text-slate-400">개</span>
+                    </p>
                   </div>
-                  <p className="text-[10px] font-bold text-slate-400 mb-0.5">금일 아카이빙한 일정</p>
-                  <p className="text-2xl font-black text-slate-800">
-                    {upcomingCount} <span className="text-xs font-bold text-slate-400">개</span>
-                  </p>
-                </div>
-
-                {/* Stats Card 2 */}
-                <div className="w-[160px] h-[120px] border border-slate-100 rounded-[1.5rem] flex flex-col items-center justify-center bg-white shadow-sm shrink-0">
-                  <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-600 mb-2">
-                    <Bell size={20} />
-                  </div>
-                  <p className="text-[10px] font-bold text-slate-400 mb-0.5">아카이빙한 총 공지</p>
-                  <p className="text-2xl font-black text-slate-800">
-                    {myArchiveCount} <span className="text-xs font-bold text-slate-400">개</span>
-                  </p>
                 </div>
               </div>
             </div>
           </div>
         ) : (
-          <div key="edit" className="w-full h-full flex flex-col gap-6 animate-apple-slide-up">
-            {/* Header Part: Selected Avatar & Name */}
-            <div className="flex items-center gap-8 pb-6 border-b border-slate-100">
-              <div className="w-40 h-40 rounded-[2.5rem] bg-slate-50 p-1 border-4 border-white shadow-xl overflow-hidden shrink-0">
+          <div key="edit" className="w-full h-full flex flex-col animate-apple-slide-up">
+            {/* 1. Header Preview Part */}
+            <div className="flex items-center gap-10 mb-16">
+              <div className="w-36 h-36 rounded-[2.5rem] bg-white p-1 border-4 border-white shadow-xl overflow-hidden shrink-0">
                 {editAvatar ? (
-                  <img src={editAvatar} alt="current" className="w-full h-full object-cover" />
+                  <img src={normalizeAvatarUrl(editAvatar)} alt="current" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full bg-slate-200 flex items-center justify-center text-slate-300">
-                    <User size={64} />
+                    <User size={56} />
                   </div>
                 )}
               </div>
               <div>
-                <h2 className="text-3xl font-black text-slate-900 tracking-tight">
-                  {editNickname || "닉네임 입력"}
+                <h2 className="text-3xl font-black text-slate-900 tracking-tighter">
+                  {editNickname || "닉네임을 입력하세요"}
                 </h2>
-                <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">
+                <p className="text-[11px] font-bold text-slate-300 mt-1 uppercase tracking-widest">
                   SSAFY 14기
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-col lg:flex-row gap-8">
+            {/* 2. Main Content Part: Grid (Left) + Form (Right) */}
+            <div className="flex flex-col lg:flex-row gap-x-24 gap-y-16">
               {/* Left: Avatar Grid */}
-              <div className="flex-1">
-                <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 animate-apple-slide-up [animation-delay:0.1s]">
+              <div className="w-full lg:w-[320px]">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">
                   아바타 선택
                 </p>
-                <div className="grid grid-cols-4 gap-3 w-full max-w-sm animate-apple-slide-up [animation-delay:0.15s]">
+                <div className="grid grid-cols-4 gap-3">
                   {AVATAR_LIST.map((url, i) => (
                     <button
                       key={i}
                       onClick={() => setEditAvatar(url)}
-                      className={`aspect-square rounded-2xl border-2 overflow-hidden relative transition-all ${editAvatar === url
-                        ? "border-[#1E325C] ring-4 ring-[#1E325C]/10 scale-105 shadow-md"
-                        : "border-slate-100 hover:border-slate-300 hover:scale-105"
-                        }`}
+                      className={`aspect-square rounded-[1rem] border-2 overflow-hidden relative transition-all apple-spring ${editAvatar === url
+                        ? "border-[#1E325C] ring-4 ring-[#1E325C]/5 scale-105 shadow-md"
+                        : "border-slate-50 hover:border-slate-200 bg-white shadow-sm"
+                        } `}
                     >
-                      <img src={url} alt={`avatar-${i}`} className="w-full h-full object-cover" />
+                      <img src={url} alt={`avatar-${i} `} className="w-full h-full object-cover" />
                       {editAvatar === url && (
-                        <div className="absolute inset-0 bg-[#1E325C]/10 flex items-center justify-center">
-                          <div className="bg-[#1E325C] text-white rounded-full p-1 shadow-lg">
-                            <Check size={16} strokeWidth={3} />
+                        <div className="absolute inset-0 bg-[#1E325C]/10 flex items-center justify-center backdrop-blur-[0.5px]">
+                          <div className="bg-[#1E325C] text-white rounded-full p-1 shadow-md">
+                            <Check size={12} strokeWidth={4} />
                           </div>
                         </div>
                       )}
@@ -317,28 +402,29 @@ export default function MyPage() {
                 </div>
               </div>
 
-              {/* Right: Identity Input */}
-              <div className="flex-1 lg:max-w-md flex flex-col">
-                <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 animate-apple-slide-up [animation-delay:0.2s]">
+              {/* Right: Input & Buttons */}
+              <div className="flex-1 flex flex-col">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">
                   내 정보 설정
                 </p>
 
-                <div className="flex-1 space-y-8 animate-apple-slide-up [animation-delay:0.25s]">
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-300 block">닉네임</label>
+                <div className="flex-1 space-y-10">
+                  <div className="space-y-3">
+                    <label className="text-[11px] font-bold text-slate-300 block ml-1">닉네임</label>
                     <input
                       ref={nicknameInputRef}
                       type="text"
                       maxLength={20}
                       value={editNickname}
                       onChange={(e) => setEditNickname(e.target.value)}
-                      className={`w-full bg-transparent border-b-2 py-3 text-2xl font-black focus:outline-none transition-colors placeholder:text-slate-200 
+                      className={`w-full bg-transparent border-b border-slate-100 py-3 text-2xl font-black focus:outline-none transition-all placeholder:text-slate-100 
                             ${isShaking
                           ? "border-red-500 text-red-500 animate-shake"
-                          : "border-slate-100 text-slate-800 focus:border-[#1E325C]"}`}
-                      placeholder="닉네임을 입력하세요"
+                          : "text-slate-800 focus:border-slate-200"
+                        } `}
+                      placeholder="이름을 입력하세요"
                     />
-                    <p className={`text-xs font-bold mt-2 transition-colors ${editNickname.length > 20 ? "text-red-500" : "text-slate-400"}`}>
+                    <p className={`text-[10px] font-bold mt-2 ml-1 transition-colors ${editNickname.length > 20 ? "text-red-500" : "text-slate-300"} `}>
                       * 닉네임은 최대 20자 까지 설정 가능합니다.
                     </p>
                   </div>
@@ -346,13 +432,13 @@ export default function MyPage() {
                   <div className="flex items-center gap-3 pt-4">
                     <button
                       onClick={handleCancelEdit}
-                      className="flex-1 py-4 rounded-xl border border-slate-200 text-slate-500 font-bold hover:bg-slate-50 transition-colors"
+                      className="flex-1 py-4 rounded-xl border border-slate-50 bg-white text-slate-400 font-bold hover:bg-slate-50 transition-all shadow-sm active:scale-95"
                     >
                       취소
                     </button>
                     <button
                       onClick={handleSaveEdit}
-                      className="flex-1 py-4 rounded-xl bg-[#1E325C] text-white font-bold shadow-lg shadow-[#1E325C]/20 hover:shadow-xl hover:scale-[1.02] transition-all"
+                      className="flex-1 py-4 rounded-xl bg-[#1E325C] text-white font-bold shadow-lg shadow-[#1E325C]/20 hover:brightness-110 transition-all active:scale-95"
                     >
                       저장하기
                     </button>
@@ -413,7 +499,7 @@ export default function MyPage() {
           }}
         />
 
-        <div className="mt-4 px-2">
+        <div className="mt-8 bg-slate-50/50 rounded-[2rem] p-8 space-y-4">
           <ArchiveGrid
             items={current}
             archivesSet={state.archives}
