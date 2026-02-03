@@ -7,7 +7,7 @@ const Header = () => {
     const navigate = useNavigate();
 
     return (
-        <header className="fixed top-0 left-20 right-0 h-16 bg-[#F8FAF9]/80 backdrop-blur-md z-[90] flex items-center justify-center px-8 transition-all duration-300">
+        <header className="fixed top-0 left-16 right-0 h-16 bg-[#F8FAF9]/80 backdrop-blur-md z-[90] flex items-center justify-center px-8 transition-all duration-300">
             <div
                 className="flex items-center gap-1 cursor-pointer"
                 onClick={() => navigate('/app')}

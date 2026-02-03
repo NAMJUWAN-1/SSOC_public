@@ -131,9 +131,6 @@
     }
 }
 
-/**
- * Base typography. This is not applied to elements which have an ancestor with a Tailwind text class.
- */
 @layer base {
     :where(:not(:has([class*=" text-"]), :not(:has([class^="text-"])))) {
         h1 {
@@ -190,7 +187,6 @@ html {
     font-size: var(--font-size);
 }
 
-/* Sidebar animations */
 @keyframes activeIndicator {
     0% {
         transform: scale(0.8);
@@ -212,12 +208,10 @@ html {
     animation: activeIndicator 2s ease-in-out infinite;
 }
 
-/* Smooth expand animation */
 .sidebar-expand {
     transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Apple-Style Smooth Animations */
 @layer utilities {
     .apple-bezier {
         transition-duration: 0.4s;
@@ -240,7 +234,6 @@ html {
         animation: appleSlideRight 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
     }
 
-    /* Springy interaction for buttons */
     .apple-spring {
         transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
@@ -325,7 +318,6 @@ html {
     }
 }
 
-/* Responsive transitions for list items */
 .stagger-item {
     opacity: 0;
     animation: appleFadeInUp 0.5s ease forwards;

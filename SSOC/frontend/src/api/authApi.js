@@ -5,13 +5,12 @@ import {
   clearAccessToken,
 } from "./tokenManager";
 
-// Prefer relative base ("") + Vite proxy for /api to keep refresh cookie same-site.
-// If you set VITE_API_BASE_URL (e.g. "https://api.example.com"), it will be used.
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 function apiUrl(path) {
   if (!API_BASE_URL) return path;
-  // avoid double slashes
+
   return `${API_BASE_URL}${path.startsWith("/") ? "" : "/"}${path}`;
 }
 
@@ -50,7 +49,6 @@ export async function refreshAccessToken() {
   });
 
   if (!res.ok) {
-    // refresh failed -> treat as logged out
     clearAccessToken();
     const msg = await safeErrorMessage(res);
     throw new Error(msg || "Refresh failed");
@@ -73,7 +71,6 @@ export async function logoutBackend() {
       credentials: "include",
     });
   } catch {
-    // ignore
   } finally {
     clearAccessToken();
   }
@@ -102,7 +99,6 @@ async function safeErrorMessage(res) {
     if (typeof data?.detail === "string") return data.detail;
     if (typeof data?.message === "string") return data.message;
   } catch {
-    // ignore
   }
   return "";
 }

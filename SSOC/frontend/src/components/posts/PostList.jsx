@@ -1,5 +1,6 @@
 import React from "react";
 import { Star } from "lucide-react";
+import LoadingSpinner from "../common/LoadingSpinner";
 
 function formatKoreanDate(dt) {
   if (!dt) return "";
@@ -32,10 +33,7 @@ export default function PostList({
   return (
     <div className="min-h-[400px] flex flex-col gap-4">
       {loading ? (
-        <div className="bg-white rounded-[2rem] p-24 text-center text-slate-400 font-black border border-slate-100 shadow-sm">
-          불러오는 중...
-          <div className="text-sm font-medium mt-1">잠시만 기다려주세요.</div>
-        </div>
+        <LoadingSpinner message="공지사항을 불러오는 중..." />
       ) : items.length > 0 ? (
         items.map((p) => {
           const id = String(p.post_id ?? p.id);
@@ -104,7 +102,6 @@ export default function PostList({
                       if (showArchiveConfirm && isArchived) {
                         showArchiveConfirm(id);
                       } else {
-                        // Pass the full post object to toggleArchive to support adding it to archivedPosts list optimistically
                         onToggleArchive(p);
                       }
                     }}

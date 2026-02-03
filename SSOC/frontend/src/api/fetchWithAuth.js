@@ -1,14 +1,12 @@
 import { getAccessToken, setAccessToken } from "./tokenManager";
 import { refreshAccessToken } from "./authApi";
 
-// Single-flight refresh (avoid multiple concurrent refresh calls)
 let refreshPromise = null;
 
 async function getFreshAccessToken() {
   if (refreshPromise) return refreshPromise;
   refreshPromise = (async () => {
     const token = await refreshAccessToken();
-    // refreshAccessToken already setAccessToken, but keep it explicit
     setAccessToken(token);
     return token;
   })();
@@ -22,12 +20,10 @@ async function getFreshAccessToken() {
 export async function fetchWithAuth(url, options = {}) {
   let token = getAccessToken();
 
-  // If token is missing (page refreshed), try refresh once (if cookie exists)
   if (!token) {
     try {
       token = await getFreshAccessToken();
     } catch {
-      // ignore: proceed without token
     }
   }
 
@@ -44,7 +40,6 @@ export async function fetchWithAuth(url, options = {}) {
   const res = await doFetch(token);
 
   if (res.status === 401) {
-    // token expired or invalid -> refresh and retry once
     const newToken = await getFreshAccessToken();
     return doFetch(newToken);
   }

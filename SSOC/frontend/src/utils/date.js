@@ -8,7 +8,6 @@ export function formatDate(iso) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
-// datetime-local value
 export function toInputValue(dateOrIso) {
   if (!dateOrIso) return "";
   const d = dateOrIso instanceof Date ? dateOrIso : new Date(dateOrIso);

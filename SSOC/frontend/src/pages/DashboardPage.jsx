@@ -29,14 +29,10 @@ export default function DashboardPage() {
   const [selectedChannels, setSelectedChannels] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
 
-  // Search input vs committed query
-  // - input: typing only (no request spam)
-  // - committed: actual backend search trigger (Enter / history click)
   const [queryInput, setQueryInput] = useState("");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
 
-  // Avoid stale-closure updates from async requests.
   const queryRef = useRef(query);
   const categoryRef = useRef(selectedCategory);
   useEffect(() => {
@@ -46,8 +42,6 @@ export default function DashboardPage() {
     categoryRef.current = selectedCategory;
   }, [selectedCategory]);
 
-  // Debounce typing into the actual backend search query
-  // (SearchWithHistory's onSearch still commits immediately.)
   useEffect(() => {
     const timer = setTimeout(() => {
       setQuery(queryInput);
@@ -55,13 +49,11 @@ export default function DashboardPage() {
     return () => clearTimeout(timer);
   }, [queryInput]);
 
-  // ---- Data state ----
   const [scopePosts, setScopePosts] = useState(state.dashboardCache.scopePosts || []);
   const [posts, setPosts] = useState(state.dashboardCache.scopePosts || []);
   const [rankingPosts, setRankingPosts] = useState(state.dashboardCache.rankingPosts || []);
   const [loading, setLoading] = useState(false);
 
-  // ---- Build board/channel tree from backend user profile ----
   const boards = useMemo(() => {
     const userChannels = state.auth.user?.channels || [];
     const map = new Map();
@@ -77,7 +69,6 @@ export default function DashboardPage() {
         });
       }
       const entry = map.get(bid);
-      // avoid duplicates
       if (!entry.channels.some((x) => x.channel_id === ch.channel_id)) {
         entry.channels.push({
           channel_id: ch.channel_id,
@@ -90,13 +81,11 @@ export default function DashboardPage() {
 
     const leadingNumber = (name) => {
       const s = String(name ?? "");
-      // e.g. "# 10. AI" -> 10
       const m = s.match(/^\s*#?\s*(\d+)\s*[\.)]/);
       return m ? Number.parseInt(m[1], 10) : null;
     };
 
     for (const b of out) {
-      // Fix lexicographic sorting issue: "10" should come after "2".
       b.channels.sort((x, y) => {
         const nx = leadingNumber(x.channel_name);
         const ny = leadingNumber(y.channel_name);
@@ -115,7 +104,6 @@ export default function DashboardPage() {
   }, [state.auth.user]);
 
   const channelScopeIds = useMemo(() => {
-    // 우선순위: 선택된 채널 > 선택된 보드의 전체 채널 > 유저의 전체 채널
     if (selectedChannels.length > 0) return selectedChannels;
 
     if (selectedBoard) {
@@ -128,21 +116,17 @@ export default function DashboardPage() {
 
   const channelScopeKey = useMemo(() => channelScopeIds.join(","), [channelScopeIds]);
 
-  // Reset category/page whenever scope changes (board/channel)
   useEffect(() => {
     setSelectedCategory(null);
     setPage(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBoard, selectedChannels.join(",")]);
 
-  // Category is only meaningful when exactly one channel is selected.
   useEffect(() => {
     if ((selectedChannels?.length ?? 0) !== 1) {
       setSelectedCategory(null);
     }
   }, [selectedChannels]);
 
-  // Consolidated Data Fetching (Scope + Ranking)
   useEffect(() => {
     let alive = true;
     const run = async () => {
@@ -152,11 +136,9 @@ export default function DashboardPage() {
       const allChannelsKey = allUserChannelIds.join(",");
       const isInitialAllScope = channelScopeKey === allChannelsKey;
 
-      // Check Cache TTL (300 seconds)
       const cache = state.dashboardCache;
       const isFresh = cache.lastUpdated && (new Date() - new Date(cache.lastUpdated)) < 300000;
 
-      // Define fetching functions first to avoid ReferenceError
       const fetchRanking = async () => {
         if (isFresh && cache.rankingPosts?.length > 0) {
           setRankingPosts(cache.rankingPosts);
@@ -195,7 +177,6 @@ export default function DashboardPage() {
         }
       };
 
-      // 1. Initial Load / No Filter Case: Consolidate scope and ranking into ONE call
       if (isInitialAllScope) {
         const canUseScopeCache = isFresh && cache.scopePosts?.length > 0;
         const canUseRankingCache = isFresh && cache.rankingPosts?.length > 0;
@@ -221,7 +202,6 @@ export default function DashboardPage() {
           }
         }
 
-        // Always check ranking independently
         if (canUseRankingCache) {
           setRankingPosts(cache.rankingPosts);
         } else {
@@ -230,7 +210,6 @@ export default function DashboardPage() {
         return;
       }
 
-      // 2. Filtered Scope Case: Use two separate checks
       fetchScope();
       fetchRanking();
     };
@@ -239,10 +218,6 @@ export default function DashboardPage() {
     return () => { alive = false; };
   }, [state.auth.isAuthenticated, channelScopeKey, allUserChannelIds.join(",")]);
 
-  // Fetch display posts using backend-side filters/search (vector search ready)
-  // - when query is committed, always request from backend
-  // - when category is selected, request from backend
-  // - otherwise reuse scopePosts to avoid redundant requests
   useEffect(() => {
     let alive = true;
 
@@ -259,7 +234,6 @@ export default function DashboardPage() {
       setLoading(true);
       try {
         const params = new URLSearchParams();
-        // Always pass channel scope so semantic search respects the user's current filter scope.
         if (channelScopeIds.length > 0) params.set("channel_id", channelScopeIds.join(","));
         if (selectedCategory) params.set("category_id", String(selectedCategory));
         if (hasQuery) params.set("keyword", query.trim());
@@ -271,15 +245,12 @@ export default function DashboardPage() {
         if (!alive) return;
         let list = Array.isArray(data) ? data : [];
         if (hasQuery) {
-          // Backend handles pgvector search. No strict client-side string filter needed
-          // to allow for semantic matches (e.g. searching 'dinner' finds 'meal').
           list = Array.isArray(data) ? data : [];
         }
         setPosts(list);
       } catch (e) {
         if (!alive) return;
         setPosts([]);
-        // eslint-disable-next-line no-console
         console.error(e);
       } finally {
         if (!alive) return;
@@ -293,21 +264,20 @@ export default function DashboardPage() {
     };
   }, [query, selectedCategory, scopePosts, channelScopeKey, state.auth.isAuthenticated]);
 
-  // Categories for UI (from scopePosts)
   const categories = useMemo(() => {
-    const m = new Map();
-    for (const p of scopePosts) {
-      const id = p.category_id;
-      const name = p.category_name;
-      if (id != null && !m.has(id)) m.set(id, name);
-    }
-    const out = Array.from(m.entries()).map(([category_id, category_name]) => ({ category_id, category_name }));
+    if ((selectedChannels?.length ?? 0) !== 1) return [];
+
+    const targetId = selectedChannels[0];
+    const userChannels = state.auth.user?.channels || [];
+    const ch = userChannels.find((c) => c.channel_id === targetId);
+
+    if (!ch || !ch.categories) return [];
+
+    const out = [...ch.categories];
     out.sort((a, b) => String(a.category_name).localeCompare(String(b.category_name), "ko"));
     return out;
-  }, [scopePosts]);
+  }, [selectedChannels, state.auth.user?.channels]);
 
-  // ---- Search + Pagination ----
-  // Apply MyPage-style client-side filtering logic to ensure instantaneous and robust filtering.
   const filtered = useMemo(() => {
     return posts.filter((p) => {
       const pidBoard = p.board_id ?? p.boardId;
@@ -316,16 +286,13 @@ export default function DashboardPage() {
 
       let matchFilter = true;
 
-      // 1. Channel Filter (Highest priority)
       if (selectedChannels.length > 0) {
         matchFilter = selectedChannels.includes(pidChannel);
       }
-      // 2. Board Filter (If no specific channels selected)
       else if (selectedBoard) {
         matchFilter = pidBoard === selectedBoard;
       }
 
-      // 3. Category Filter
       if (matchFilter && selectedCategory) {
         matchFilter = pidCategory === selectedCategory;
       }
@@ -350,9 +317,7 @@ export default function DashboardPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [page]);
 
-  // ---- Handlers ----
   const onSelectBoard = (boardId) => {
-    // toggle behavior (same as before)
     setSelectedBoard((prev) => (prev === boardId ? null : boardId));
     setSelectedChannels([]);
   };
@@ -377,7 +342,6 @@ export default function DashboardPage() {
     setPage(1);
   };
 
-  // Open post detail (prefer server-side detail payload when available)
   const onOpenPost = async (post) => {
     const pid = post?.post_id ?? post?.id;
     if (!pid) {
@@ -388,7 +352,6 @@ export default function DashboardPage() {
       const res = await fetchWithAuth(apiUrl(`/api/posts/?post_id=${encodeURIComponent(pid)}`), { method: "GET" });
       if (!res.ok) throw new Error("detail fetch failed");
       const data = await res.json();
-      // Merge: preserve IDs from list item if they are missing in the detail response
       actions.openPostDetailFromPost(data ? { ...post, ...data } : post);
     } catch {
       actions.openPostDetailFromPost(post);
@@ -402,6 +365,7 @@ export default function DashboardPage() {
       <RankingCarousel
         posts={rankingPosts.slice(0, 5)}
         onOpen={onOpenPost}
+        loading={loading}
       />
 
       {/* Main Notice Section */}

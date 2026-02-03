@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useEffect } from "react";
+import React, { useMemo, useRef, useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { isSameDay, startOfDay } from "../../utils/date";
 import { getDefaultColorForCategory, makeChipStyle } from "../../utils/eventColor";
@@ -32,6 +32,7 @@ export default function CalendarMonth({
   hideHeader = false,
 }) {
   const ref = useRef(null);
+  const [hoveredEventId, setHoveredEventId] = useState(null);
 
   useEffect(() => {
     const onDown = (e) => {
@@ -81,23 +82,18 @@ export default function CalendarMonth({
           const ea = new Date(a.endAt || a.startAt).getTime();
           const eb = new Date(b.endAt || b.startAt).getTime();
 
-          // NOTE: 겹치는 일정의 "위/아래" 우선순위 규칙
-          // - 포함(완전 겹침/포함 관계): 긴 일정(범위가 더 큰 것)이 위로
-          // - 부분 겹침: 빨리 끝나는 일정이 위로
-          const overlap = sa <= eb && sb <= ea;
-          if (overlap) {
-            const aContains = sa <= sb && ea >= eb;
-            const bContains = sb <= sa && eb >= ea;
-            if (aContains && !bContains) return -1;
-            if (bContains && !aContains) return 1;
+          const durA = ea - sa;
+          const durB = eb - sb;
 
-            if (ea !== eb) return ea - eb; // partial overlap: earlier end first
-            if (sa !== sb) return sa - sb;
-            return String(a.id).localeCompare(String(b.id));
-          }
+          // 1. 기간이 긴 일정을 우선순위로
+          if (durA !== durB) return durB - durA;
 
+          // 2. 시작일이 빠른 순
           if (sa !== sb) return sa - sb;
+
+          // 3. 종료일이 빠른 순
           if (ea !== eb) return ea - eb;
+
           return String(a.id).localeCompare(String(b.id));
         });
 
@@ -191,27 +187,35 @@ export default function CalendarMonth({
           return (
             <div
               key={wi}
-              className={`grid grid-cols-7 border-b border-slate-100 transition-all duration-500 apple-bezier relative overflow-hidden ${isExpanded ? "h-[20rem] bg-slate-50/50 shadow-inner" : "h-32"
+              className={`grid grid-cols-7 border-b border-slate-100 transition-all duration-500 apple-bezier relative ${isExpanded ? "h-[20rem] bg-slate-50/50 shadow-inner overflow-y-auto" : "h-32 overflow-hidden"
                 }`}
             >
               {week.map((date, di) => {
                 const today = date && isSameDay(date, new Date());
 
-                // ✅ 여기만 기능 수정
-                const actualCount = lanes.reduce((acc, lane) => {
-                  const hasEvent = lane.some((e) => {
+                // 해당 날짜에 있는 전제 일정 개수
+                const allEventsOnDay = lanes.map(lane =>
+                  lane.find(e => {
                     const s = startOfDay(e.startAt);
                     const end = startOfDay(e.endAt || e.startAt);
                     const t = startOfDay(date);
                     return t >= s && t <= end;
-                  });
-                  return acc + (hasEvent ? 1 : 0);
-                }, 0);
+                  })
+                ).filter(Boolean);
 
-                const hiddenCount = Math.max(
-                  0,
-                  actualCount - MAX_VISIBLE_LANES
-                );
+                const totalCount = allEventsOnDay.length;
+
+                // 실제로 칩(Chip)으로 그려지는 일정 개수 (상위 N개 레인 내)
+                const visibleCount = lanes.slice(0, MAX_VISIBLE_LANES).filter(lane =>
+                  lane.some(e => {
+                    const s = startOfDay(e.startAt);
+                    const end = startOfDay(e.endAt || e.startAt);
+                    const t = startOfDay(date);
+                    return t >= s && t <= end;
+                  })
+                ).length;
+
+                const hiddenCount = Math.max(0, totalCount - visibleCount);
 
                 return (
                   <div
@@ -225,15 +229,18 @@ export default function CalendarMonth({
                     {date && (
                       <>
                         <div
-                          className={`flex items-center justify-center text-sm absolute top-3 right-3 w-7 h-7 rounded-full transition-all duration-300 ${today
+                          className={`flex items-center justify-center text-sm transition-all duration-300 z-10 ${today
                             ? "bg-[#FFBC1F] text-[#1E325C] font-black shadow-sm scale-110"
                             : `font-medium ${di === 0 ? "text-[#FF3B30]" : di === 6 ? "text-[#007AFF]" : "text-slate-500"}`
+                            } ${isExpanded
+                              ? "sticky top-0 right-3 ml-auto mr-3 mt-3 w-7 h-7 rounded-full bg-slate-50/90 backdrop-blur-sm"
+                              : "absolute top-3 right-3 w-7 h-7 rounded-full"
                             }`}
                         >
                           {date.getDate()}
                         </div>
 
-                        <div className="mt-11 space-y-1">
+                        <div className={`${isExpanded ? "mt-1" : "mt-11"} space-y-1`}>
                           {!isExpanded &&
                             lanes.slice(0, MAX_VISIBLE_LANES).map((lane, li) => {
                               const ev = lane.find((e) => {
@@ -244,32 +251,34 @@ export default function CalendarMonth({
                               });
 
                               if (!ev)
-                                return <div key={li} className="h-5 mx-2" />;
+                                return <div key={li} className="h-6 mx-2" />;
 
                               const pos = getEventPosition(ev, date);
 
-                              // ✅ 매월 1일에는 무조건 제목 표시 (스타일은 원래대로 유지하여 이어짐 표현)
-                              const showTitle = pos === "start" || pos === "single" || date.getDate() === 1;
+                              const isSunday = di === 0;
+                              const showTitle = pos === "start" || pos === "single" || date.getDate() === 1 || isSunday;
+
+                              const chipStyle = makeChipStyle(ev.color || getDefaultColorForCategory(ev.category), {
+                                accentLeft: pos === "start" || pos === "single",
+                                accentRight: pos === "end" || pos === "single",
+                              });
 
                               let chip =
-                                "h-5 text-[9px] font-black flex items-center px-2 truncate opacity-80 transition-all hover:brightness-105";
+                                "h-6 text-[10px] font-black flex items-center px-2 truncate relative";
 
                               if (pos === "start")
-                                chip += " rounded-l-md ml-2 mr-0";
+                                chip += " rounded-l-md ml-2 mr-[-1px]";
                               else if (pos === "end")
-                                chip += " rounded-r-md ml-0 mr-2";
+                                chip += " rounded-r-md ml-[-1px] mr-2";
                               else if (pos === "middle")
-                                chip += " rounded-none mx-0";
+                                chip += " rounded-none mx-[-1px]";
                               else chip += " rounded-md mx-2";
 
                               return (
                                 <div
                                   key={li}
                                   className={`${chip} border border-transparent`}
-                                  style={makeChipStyle(ev.color || getDefaultColorForCategory(ev.category), {
-                                    accentLeft: pos === "start" || pos === "single",
-                                    accentRight: pos === "end" || pos === "single",
-                                  })}
+                                  style={chipStyle}
                                 >
                                   {showTitle ? ev.title : "\u00A0"}
                                 </div>
@@ -292,35 +301,51 @@ export default function CalendarMonth({
                               });
 
                               if (!ev)
-                                return <div key={li} className="h-5 mx-2" />;
+                                return <div key={li} className="h-6 mx-2" />;
 
                               const pos = getEventPosition(ev, date);
 
-                              // ✅ 매월 1일에는 무조건 제목 표시 (스타일은 원래대로 유지하여 이어짐 표현) - 확장 뷰
-                              const showTitle = pos === "start" || pos === "single" || date.getDate() === 1;
+                              const isSunday = di === 0;
+                              const showTitle = pos === "start" || pos === "single" || date.getDate() === 1 || isSunday;
+
+                              const isHovered = hoveredEventId === ev.id;
 
                               let chip =
-                                "h-5 text-[9px] font-black flex items-center px-2 truncate transition-all hover:brightness-105 cursor-pointer";
+                                "h-6 text-[10px] font-black flex items-center px-2 truncate transition-all duration-200 cursor-pointer relative";
+
+                              if (isHovered) {
+                                chip += " scale-y-[1.1] shadow-xl brightness-105 z-20";
+                              }
+
+                              const chipStyle = {
+                                ...makeChipStyle(ev.color || getDefaultColorForCategory(ev.category), {
+                                  accentLeft: pos === "start" || pos === "single",
+                                  accentRight: pos === "end" || pos === "single",
+                                }),
+                                animationDelay: `${li * 0.05}s`
+                              };
+
+                              if (isHovered) {
+                                if (pos === "start") chipStyle.clipPath = "inset(-100px -5px -100px -100px)";
+                                else if (pos === "middle") chipStyle.clipPath = "inset(-100px -5px -100px -5px)";
+                                else if (pos === "end") chipStyle.clipPath = "inset(-100px -100px -100px -5px)";
+                              }
 
                               if (pos === "start")
-                                chip += " rounded-l-md ml-2 mr-0";
+                                chip += ` rounded-l-md ml-2 ${isHovered ? "mr-[-5px]" : "mr-[-1px]"}`;
                               else if (pos === "end")
-                                chip += " rounded-r-md ml-0 mr-2";
+                                chip += ` rounded-r-md ${isHovered ? "ml-[-5px]" : "ml-[-1px]"} mr-2`;
                               else if (pos === "middle")
-                                chip += " rounded-none mx-0";
+                                chip += ` rounded-none ${isHovered ? "mx-[-5px]" : "mx-[-1px]"}`;
                               else chip += " rounded-md mx-2";
 
                               return (
                                 <div
                                   key={li}
                                   className={`${chip} border border-transparent animate-apple-slide-up`}
-                                  style={{
-                                    ...makeChipStyle(ev.color || getDefaultColorForCategory(ev.category), {
-                                      accentLeft: pos === "start" || pos === "single",
-                                      accentRight: pos === "end" || pos === "single",
-                                    }),
-                                    animationDelay: `${li * 0.05}s`
-                                  }}
+                                  style={chipStyle}
+                                  onMouseEnter={() => setHoveredEventId(ev.id)}
+                                  onMouseLeave={() => setHoveredEventId(null)}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     onOpenEvent(ev);

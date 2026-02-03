@@ -21,10 +21,8 @@ async function requireOk(res, fallbackMsg) {
   throw new Error(msg);
 }
 
-/**
- * Create archive
- * POST /api/users/{user_id}/archives
- * body: { post_id }
+/*
+ *Create archive
  */
 export async function createArchive({ user_id, post_id }) {
   const res = await fetchWithAuth(apiUrl(`/api/archives/`), {
@@ -36,9 +34,8 @@ export async function createArchive({ user_id, post_id }) {
   return await res.json();
 }
 
-/**
+/*
  * Delete archive
- * DELETE /api/users/{user_id}/archives/{archive_id}
  */
 export async function deleteArchive({ user_id, archive_id }) {
   const res = await fetchWithAuth(
@@ -49,9 +46,8 @@ export async function deleteArchive({ user_id, archive_id }) {
   return true;
 }
 
-/**
+/*
  * My archives list
- * GET /api/archives?user_id={user_id}
  */
 export async function listMyArchives({ user_id }) {
   const qs = new URLSearchParams();
@@ -62,9 +58,8 @@ export async function listMyArchives({ user_id }) {
   return Array.isArray(data) ? data : [];
 }
 
-/**
+/*
  * Count my archives
- * GET /api/archives/count?user_id={user_id}
  */
 export async function countMyArchives({ user_id }) {
   const qs = new URLSearchParams();
@@ -79,9 +74,8 @@ export async function countMyArchives({ user_id }) {
   return 0;
 }
 
-/**
+/*
  * Archive ranking
- * GET /api/rankings/archives
  */
 export async function listArchiveRanking() {
   const res = await fetchWithAuth(apiUrl(`/api/rankings/archives`), { method: "GET" });

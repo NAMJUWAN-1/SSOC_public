@@ -54,7 +54,6 @@ const SideNav = () => {
             <div className="flex flex-col gap-4 w-full items-center">
                 {navItems.map((item) => {
                     const Icon = item.icon;
-                    // Strict match or trailing slash match
                     const isActive = location.pathname === item.path || location.pathname === `${item.path}/`;
 
                     return (
@@ -63,9 +62,7 @@ const SideNav = () => {
                             onClick={() => navigate(item.path)}
                             className={cn(
                                 "relative flex items-center justify-start transition-all duration-300 overflow-hidden group/item",
-                                // Shape transition: Circle (collapsed) -> Rounded Rectangle (expanded)
                                 "rounded-full group-hover:rounded-2xl",
-                                // Width transition: Fixed (collapsed) -> Full (expanded with margin)
                                 "w-[40px] group-hover:w-[calc(100%-1.5rem)]",
                                 isActive
                                     ? "bg-[#FFBC1F] text-[#1E325C] shadow-[0_4px_18px_rgba(255,188,31,0.4)] transition-all active:scale-95 apple-spring"
@@ -73,7 +70,7 @@ const SideNav = () => {
                             )}
                             style={{ height: '40px' }}
                         >
-                            {/* Icon Wrapper - Center in collapsed, Left in expanded */}
+                            {/* Icon Wrapper */}
                             <div className="w-[40px] h-[40px] flex items-center justify-center shrink-0">
                                 <div className={cn(
                                     "w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300",
@@ -87,7 +84,7 @@ const SideNav = () => {
                                 </div>
                             </div>
 
-                            {/* Label & SubLabel - visible on expand */}
+                            {/* Label & SubLabel */}
                             <div className={cn(
                                 "flex flex-col items-start justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 delay-75 w-full pr-4 whitespace-nowrap pl-2"
                             )}>
@@ -105,7 +102,7 @@ const SideNav = () => {
                                 </span>
                             </div>
 
-                            {/* Active Indicator Dot - Right side */}
+                            {/* Active Indicator Dot */}
                             {isActive && (
                                 <div className="absolute right-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-100">
                                     <Circle size={6} fill="#1E325C" stroke="none" className="opacity-50" />
@@ -124,7 +121,7 @@ const SideNav = () => {
                     "w-[48px] group-hover:w-[calc(100%-1.5rem)] h-[48px]",
                     "bg-white/5 group-hover:bg-white/10"
                 )}>
-                    {/* Avatar Wrapper - Same as Icon Wrapper for centering */}
+                    {/* Avatar Wrapper */}
                     <div className="w-[48px] h-[48px] flex items-center justify-center shrink-0">
                         <div
                             className="w-10 h-10 rounded-full overflow-hidden border border-white/10 cursor-pointer active:scale-95 transition-transform"
@@ -144,7 +141,7 @@ const SideNav = () => {
                         </div>
                     </div>
 
-                    {/* Info & Logout (Expanded only) */}
+                    {/* Info & Logout */}
                     <div className="flex items-center justify-between flex-1 min-w-0 opacity-0 group-hover:opacity-100 transition-all duration-300 delay-75 overflow-hidden pr-4">
                         <div className="flex flex-col ml-1 min-w-0">
                             <span className="text-xs font-bold text-white truncate">

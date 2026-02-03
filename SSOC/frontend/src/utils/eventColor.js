@@ -1,8 +1,3 @@
-/**
- * Event color utilities
- * - color: hex string like "#3b82f6"
- */
-
 export const CATEGORY_COLOR_MAP = {
   "시험": "#a855f7",   // purple-500
   "과제": "#ef4444",   // red-500
@@ -40,10 +35,7 @@ function hexToRgb(hex) {
   return { r, g, b };
 }
 
-/**
- * Make inline style for calendar chips
- * - We keep Tailwind layout classes, but set dynamic colors via style.
- */
+
 export function makeChipStyle(colorHex, opts = {}) {
   const rgb = hexToRgb(colorHex);
   if (!rgb) return undefined;
@@ -51,16 +43,18 @@ export function makeChipStyle(colorHex, opts = {}) {
   const { r, g, b } = rgb;
   const alpha = opts.alpha ?? 0.18;
 
-  // For readability, especially with light colors (yellow, mint), 
-  // we use a significantly darkened version of the color for the text.
+  const br = Math.floor(r * alpha + 255 * (1 - alpha));
+  const bg = Math.floor(g * alpha + 255 * (1 - alpha));
+  const bb = Math.floor(b * alpha + 255 * (1 - alpha));
+
   const darkR = Math.floor(r * 0.5);
   const darkG = Math.floor(g * 0.5);
   const darkB = Math.floor(b * 0.5);
 
   const style = {
-    backgroundColor: `rgba(${r}, ${g}, ${b}, ${alpha})`,
+    backgroundColor: `rgb(${br}, ${bg}, ${bb})`,
     color: `rgb(${darkR}, ${darkG}, ${darkB})`,
-    fontWeight: "700", // Make text slightly bolder for clarity
+    fontWeight: "700",
   };
 
   if (opts.accentLeft) {

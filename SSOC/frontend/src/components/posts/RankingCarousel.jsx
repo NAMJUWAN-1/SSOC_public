@@ -1,27 +1,31 @@
 import React, { useRef } from "react";
-import { TrendingUp, ChevronLeft, ChevronRight, ArrowUpRight, Star } from "lucide-react";
+import LoadingSpinner from "../common/LoadingSpinner";
+import { TrendingUp, ChevronLeft, ChevronRight, ArrowUpRight, Star, Flame } from "lucide-react";
 import { cn } from "../../components/ui/utils";
 
-/**
- * RankingCarousel
- * Displays top posts with a badge and archiving stats.
- * Includes its own header and navigation controls.
- */
 function snippet100(text) {
   const t = String(text || "").replace(/\s+/g, " ").trim();
   if (!t) return "";
   return t.length > 100 ? t.slice(0, 100) + "..." : t;
 }
 
-export default function RankingCarousel({ posts = [], onOpen }) {
+export default function RankingCarousel({ posts = [], onOpen, loading = false }) {
   const scrollRef = useRef(null);
+
+  if (loading) {
+    return (
+      <section className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100 mb-8">
+        <LoadingSpinner message="랭킹을 불러오는 중..." />
+      </section>
+    );
+  }
 
   if (!posts || posts.length === 0) return null;
 
   const scroll = (direction) => {
     if (scrollRef.current) {
       const { current } = scrollRef;
-      const scrollAmount = 300; // Approx card width + gap
+      const scrollAmount = 300;
       current.scrollBy({
         left: direction === "left" ? -scrollAmount : scrollAmount,
         behavior: "smooth",
@@ -65,8 +69,6 @@ export default function RankingCarousel({ posts = [], onOpen }) {
             const id = p.post_id ?? p.id;
             const headline = p.ai_title ?? p.title ?? "(제목 없음)";
             const content = p.display_content ?? p.displayContent ?? p.content ?? p.rawContent ?? "";
-            // Mocking archiving count for visual match since actual data might not exist in this snippet
-            // Using random numbers for demo or p.views if available as a proxy
             const archivingCount = p.views ? p.views * 12 : 120 + idx * 30;
             const dateStr = p.created_at ? new Date(p.created_at).toLocaleDateString() : "2026. 1. 1.";
 
@@ -74,15 +76,15 @@ export default function RankingCarousel({ posts = [], onOpen }) {
               <div
                 key={id}
                 onClick={() => onOpen?.(p)}
-                className="flex-shrink-0 w-[320px] snap-start bg-white p-6 rounded-2xl shadow-md border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer relative mt-2 active:scale-95"
+                className="flex-shrink-0 w-[320px] snap-start bg-white pt-6 px-6 pb-3 rounded-2xl shadow-md border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer relative mt-2 active:scale-95"
               >
-                {/* Ranking Badge - Overlapping Top Left */}
+                {/* Ranking Badge */}
                 <div className="absolute -top-4 left-6 w-10 h-10 rounded-full bg-[#FFBC1F] text-[#1E325C] flex items-center justify-center font-black text-lg shadow-md z-10">
                   {idx + 1}
                 </div>
 
-                <div className="mt-4 mb-3">
-                  <h3 className="font-bold text-slate-800 text-lg line-clamp-2 leading-snug h-14">
+                <div className="mt-2 mb-1">
+                  <h3 className="font-bold text-slate-800 text-lg line-clamp-2 leading-snug h-12">
                     {headline}
                   </h3>
                 </div>
@@ -96,9 +98,9 @@ export default function RankingCarousel({ posts = [], onOpen }) {
                 )}
 
                 {/* Scrap Count Display */}
-                <div className="flex items-center gap-1.5 text-[#FF3B30] font-black text-xs">
-                  <TrendingUp size={12} />
-                  <span>아카이빙 {p.scrap_count ?? 0}회</span>
+                <div className="flex items-center gap-1 text-[#E7625F] font-black text-[11px] tracking-tight mt-3 ml-[-2px]">
+                  <Flame size={14} className="fill-current" />
+                  <span>{p.scrap_count ?? 0} SCRAPS</span>
                 </div>
               </div>
             );

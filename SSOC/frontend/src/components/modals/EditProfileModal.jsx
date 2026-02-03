@@ -1,13 +1,6 @@
 import React, { useMemo, useState } from "react";
-import { AVATAR_PRESETS } from "../../data/mockData";
+import { AVATAR_PRESETS } from "../../data/constants";
 
-/**
- * (Legacy) EditProfileModal
- * - kept for future use
- * - Backend field names:
- *   - nickname
- *   - profile_image_url
- */
 export default function EditProfileModal({ user, onClose, onSave }) {
   const defaultAvatar = useMemo(
     () => user?.profile_image_url || AVATAR_PRESETS[0],

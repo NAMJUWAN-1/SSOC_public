@@ -7,8 +7,9 @@ import { useApp } from "../state/AppProvider";
 import BoardChannelFilter from "../components/filter/BoardChannelFilter";
 import ArchiveGrid from "../components/posts/ArchiveGrid";
 import Pagination from "../components/common/Pagination";
+import SearchWithHistory from "../components/search/SearchWithHistory";
+import LoadingSpinner from "../components/common/LoadingSpinner";
 
-// Local Avatars
 const AVATAR_LIST = [
   "/avatars/1.png",
   "/avatars/2.png",
@@ -31,7 +32,7 @@ function normalizeAvatarUrl(u) {
 export default function MyPage() {
   const { state, actions } = useApp();
 
-  // boards tree (for filter UI)
+  // boards tree
   const boards = useMemo(() => {
     const userChannels = state.auth.user?.channels || [];
     const map = new Map();
@@ -50,7 +51,6 @@ export default function MyPage() {
     return Array.from(map.values());
   }, [state.auth.user]);
 
-  // Create a mapping of channel_id to board_id for robust filtering when backend information is missing
   const channelToBoardMap = useMemo(() => {
     const map = new Map();
     const userChannels = state.auth.user?.channels || [];
@@ -67,13 +67,12 @@ export default function MyPage() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedBoard, setSelectedBoard] = useState(null);
   const [selectedChannels, setSelectedChannels] = useState([]);
-  const ITEMS_PER_PAGE = 9; // Grid (3x3)
+  const ITEMS_PER_PAGE = 9;
 
-  // Vector search state
   const [searchResults, setSearchResults] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
 
-  // Search effect (Debounce)
+  // Search effect
   useEffect(() => {
     if (!q.trim()) {
       setSearchResults(null);
@@ -103,14 +102,12 @@ export default function MyPage() {
     return () => clearTimeout(timer);
   }, [q]);
 
-  // '남은 일정'은 현재 시간 기준으로 계산 (1분마다 갱신)
   const [nowTick, setNowTick] = useState(Date.now());
   useEffect(() => {
     const t = setInterval(() => setNowTick(Date.now()), 60 * 1000);
     return () => clearInterval(t);
   }, []);
 
-  // --- Edit Mode State ---
   const [isEditing, setIsEditing] = useState(false);
   const [editNickname, setEditNickname] = useState("");
   const [editAvatar, setEditAvatar] = useState("");
@@ -156,34 +153,42 @@ export default function MyPage() {
 
   const filtered = useMemo(() => {
     let sourceList = myArchivedPosts;
+    const trimQ = q.trim().toLowerCase();
 
-    // 만약 검색어가 있다면, 백엔드 검색 결과를 우선 사용 (벡터 검색)
-    // 단, 검색 결과 중 '내가 아카이빙한 포스트'만 남겨야 함 (교집합)
-    if (q.trim()) {
-      if (!searchResults) {
-        // 로딩 중이거나 결과가 없으면 빈 리스트 (Strict Backend)
-        sourceList = [];
-      } else {
-        // searchResults에 있는 포스트 중, 내 아카이브(state.archives)에 있는 것만 필터
-        const myArchiveMap = new Map(myArchivedPosts.map(p => [String(p.post_id ?? p.id), p]));
+    if (trimQ) {
+      const localMatches = myArchivedPosts.filter(p =>
+        (p.ai_title?.toLowerCase() ?? "").includes(trimQ) ||
+        (p.content?.toLowerCase() ?? "").includes(trimQ) ||
+        (p.display_content?.toLowerCase() ?? "").includes(trimQ)
+      );
 
-        sourceList = searchResults
-          .filter(p => state.archives.has(String(p.post_id ?? p.id)))
-          .map(p => {
-            const pid = String(p.post_id ?? p.id);
-            const original = myArchiveMap.get(pid);
-            // 검색 결과의 정렬 순서(유사도) 유지 + 원본 아카이브 데이터(날짜 등) 병합
-            return original ? { ...p, ...original } : p;
-          });
+      let vectorMatches = [];
+      if (searchResults) {
+        vectorMatches = searchResults.filter(p => state.archives.has(String(p.post_id ?? p.id)));
       }
+
+      const mergedMap = new Map();
+
+      localMatches.forEach(p => mergedMap.set(String(p.post_id ?? p.id), p));
+
+      vectorMatches.forEach(vp => {
+        const vid = String(vp.post_id ?? vp.id);
+        if (!mergedMap.has(vid)) {
+          mergedMap.set(vid, vp);
+        } else {
+          const existing = mergedMap.get(vid);
+          mergedMap.set(vid, { ...existing, ...vp });
+        }
+      });
+
+      sourceList = Array.from(mergedMap.values());
+
     }
 
-    // Board/Channel Filter 적용
     return sourceList.filter((p) => {
       let pidBoard = p.board_id ?? p.boardId;
       const pidChannel = p.channel_id ?? p.channelId;
 
-      // Fallback: If board_id is missing, resolve it from the channel map
       if (pidBoard === undefined || pidBoard === null) {
         pidBoard = channelToBoardMap.get(pidChannel);
       }
@@ -238,7 +243,6 @@ export default function MyPage() {
     return API_BASE_URL.replace(/\/$/, "") + p;
   }
 
-  // Open post detail (prefer server-side detail payload when available)
   const onOpenPost = async (post) => {
     const pid = post?.post_id ?? post?.id;
     if (!pid) {
@@ -249,7 +253,6 @@ export default function MyPage() {
       const res = await fetchWithAuth(apiUrl(`/api/posts/?post_id=${encodeURIComponent(pid)}`), { method: "GET" });
       if (!res.ok) throw new Error("detail fetch failed");
       const data = await res.json();
-      // Merge: preserve IDs from list item if they are missing in the detail response
       actions.openPostDetailFromPost(data ? { ...post, ...data } : post);
     } catch {
       actions.openPostDetailFromPost(post);
@@ -259,7 +262,7 @@ export default function MyPage() {
   return (
     <div className="space-y-6 pb-20">
 
-      {/* Top Section: Unified Card (Switch between View and Edit) */}
+      {/* Top Section */}
       <div className="bg-white rounded-[2rem] p-10 shadow-sm border border-slate-100 min-h-[220px] flex flex-col relative transition-all duration-500 apple-bezier overflow-hidden">
 
         {!isEditing ? (
@@ -461,26 +464,31 @@ export default function MyPage() {
             아카이빙된 공지
           </h2>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {/* Search Box */}
-            <div className="relative">
-              <input
-                type="text"
+            <div className="flex-1 md:w-[280px]">
+              <SearchWithHistory
                 value={q}
-                onChange={(e) => setQ(e.target.value)}
+                onChange={(v) => {
+                  setQ(v);
+                  if (!v) {
+                    setSearchResults(null);
+                    setIsSearching(false);
+                  }
+                }}
+                onSearch={setQ}
                 placeholder="아카이빙된 공지 검색..."
-                className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-full text-sm font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#1E325C] w-[240px] transition-all shadow-sm"
+                historyMode="backend"
               />
-              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             </div>
 
             {/* Filter Button */}
             <button
               onClick={() => setFilterOpen((v) => !v)}
-              className="flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-slate-200 shadow-sm hover:shadow transition-all group"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-200 shadow-sm hover:shadow transition-all group"
             >
-              <Filter size={16} className="text-slate-400 group-hover:text-[#1E325C]" />
-              <span className="text-xs font-black text-slate-500 group-hover:text-[#1E325C]">필터</span>
+              <Filter size={18} className="text-slate-400 group-hover:text-[#1E325C]" />
+              <span className="text-sm font-black text-slate-600 group-hover:text-[#1E325C]">필터</span>
             </button>
           </div>
         </div>
@@ -500,13 +508,17 @@ export default function MyPage() {
         />
 
         <div className="mt-8 bg-slate-50/50 rounded-[2rem] p-8 space-y-4">
-          <ArchiveGrid
-            items={current}
-            archivesSet={state.archives}
-            onOpen={onOpenPost}
-            onToggleArchive={actions.toggleArchive}
-            showArchiveConfirm={(postId) => actions.openConfirm("unarchive", { postId })}
-          />
+          {isSearching ? (
+            <LoadingSpinner message="결과 검색 중..." />
+          ) : (
+            <ArchiveGrid
+              items={current}
+              archivesSet={state.archives}
+              onOpen={onOpenPost}
+              onToggleArchive={actions.toggleArchive}
+              showArchiveConfirm={(postId) => actions.openConfirm("unarchive", { postId })}
+            />
+          )}
         </div>
 
         <div className="mt-12 flex justify-center">

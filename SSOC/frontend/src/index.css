@@ -1,6 +1,5 @@
 @import "./styles/globals.css";
 
-/* globals.css already includes tailwindcss */
 @font-face {
     font-family: 'NanumSquareNeo';
     src: url('/fonts/NanumSquareNeo-bRg.ttf') format('truetype');
@@ -15,7 +14,6 @@ body,
     font-family: 'NanumSquareNeo', sans-serif !important;
 }
 
-/* Custom Scrollbar Hiding */
 .scrollbar-hide::-webkit-scrollbar {
     display: none;
 }
@@ -45,7 +43,6 @@ body,
     animation: shake 0.2s ease-in-out 3;
 }
 
-/* Pointer cursor for interactive elements */
 button:not(:disabled),
 a,
 [role="button"],

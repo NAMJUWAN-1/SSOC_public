@@ -18,7 +18,6 @@ const BottomNav = () => {
             <div className="bg-white/90 backdrop-blur-xl border border-slate-200 shadow-[0_10px_40px_rgba(0,0,0,0.1)] rounded-[2.5rem] px-4 py-3 flex items-center justify-center gap-2">
                 {navItems.map((item) => {
                     const Icon = item.icon;
-                    // Strict match or trailing slash match
                     const isActive = location.pathname === item.path || location.pathname === `${item.path}/`;
 
                     return (

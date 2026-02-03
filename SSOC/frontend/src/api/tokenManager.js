@@ -1,9 +1,3 @@
-// In-memory token store (✅ no localStorage)
-//
-// - access token: memory only
-// - refresh token: backend-managed HttpOnly cookie
-// - refresh flow: /api/auth/refresh/ -> { access }
-
 let accessToken = null;
 let userId = null;
 
@@ -14,7 +8,6 @@ function notify() {
     try {
       fn({ accessToken, userId });
     } catch {
-      // ignore
     }
   }
 }
@@ -43,7 +36,6 @@ export function getUserId() {
   return userId;
 }
 
-// optional subscription (debug/UI sync)
 export function subscribeTokenStore(fn) {
   listeners.add(fn);
   return () => listeners.delete(fn);
