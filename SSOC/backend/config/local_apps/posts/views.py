@@ -231,6 +231,7 @@ class PostAPIView(APIView):
                 "channel_id": post.channel_id,
                 "channel_name": post.channel.channel_name,
                 "ai_title": post.ai_title,
+                "display_content": post.display_content,
                 "content": post.content,
                 "posted_at": post.posted_at.isoformat() if post.posted_at else None,
                 "is_archived": post.is_archived,  # 북마크 상태
