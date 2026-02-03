@@ -76,13 +76,32 @@ class UserDetailView(APIView):
         }
         
         # 2. 채널 정보 (UserInfo 테이블 조회)
-        # 활성화된 채널만 조회
-        user_channels = UserInfo.objects.filter(user=user, status=True).select_related('channel', 'channel__board')
+        # 활성화된 Public 채널만 조회 (Private 채널 제외), 카테고리 정보도 함께 prefetch (쿼리 조회 회수 N+1번 -> 2번으로 개선)
+        user_channels = UserInfo.objects.filter(
+            user=user, 
+            status=True,
+            channel__mm_channel_type='O'  # Public 채널만 (Private 채널 제외)
+        ).select_related(
+            'channel',
+            'channel__board'
+        ).prefetch_related(
+            'channel__categories'
+        )
         
         channels_data = []
         for uc in user_channels:
             channel = uc.channel
             board = channel.board
+            
+            # 채널의 카테고리 목록 생성
+            categories = [
+                {
+                    "category_id": cat.category_id,
+                    "category_name": cat.category_name
+                }
+                for cat in channel.categories.all()
+            ]
+            
             channels_data.append({
                 "channel_id": channel.channel_id,
                 "channel_name": channel.channel_name,
@@ -93,7 +112,8 @@ class UserDetailView(APIView):
                     "mm_team_id": board.mm_team_id,
                     "board_name": board.board_name,
                     "mm_board_id": board.mm_board_id,
-                }
+                },
+                "categories": categories
             })
             
         user_data["channels"] = channels_data
