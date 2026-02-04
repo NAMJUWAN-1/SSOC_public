@@ -330,7 +330,7 @@ OUTPUT (JSON ONLY):
                     matched_category_id = cat_id
             
             # 임계값 이상인 경우만 분류 (0.5 이상)
-            if max_similarity >= 0.5 and matched_category_id:
+            if max_similarity >= 0.3 and matched_category_id:
                 update_params.append((matched_category_id, post['post_id']))
         
         # 배치 UPDATE (매칭된 게시글만)
