@@ -79,6 +79,8 @@ class TrackAProcessor:
         if not posts:
             return {'status': 'skip', 'reason': 'No posts'}
         
+        total_post_count = len(posts)
+        
         # 2. Gemini API 호출: 카테고리 생성
         categories = self._generate_categories(posts)
         
@@ -108,19 +110,29 @@ class TrackAProcessor:
                     })
             
             # 3-3. 전체 게시글을 신규 카테고리로 일괄 분류
-            self._classify_all_posts(channel_id, new_category_ids, etc_id)
+            classification_result = self._classify_all_posts(channel_id, new_category_ids, etc_id)
             
-            logging.info(f"[SUCCESS] Track A 완료: 채널 {channel_id}, 카테고리 {len(new_category_ids)}개 생성")
+            # 3-4. 카테고리 유효성 검증 및 정리
+            valid_categories = self._validate_and_cleanup_categories(
+                channel_id, 
+                new_category_ids, 
+                etc_id, 
+                total_post_count
+            )
+            
+            logging.info(f"[SUCCESS] Track A 완료: 채널 {channel_id}, 유효 카테고리 {len(valid_categories)}개 (총 {len(new_category_ids)}개 생성)")
             
             return {
                 'status': 'success',
                 'track': 'A',
-                'new_categories': len(new_category_ids),
-                'classified_posts': len(posts),
+                'new_categories': len(valid_categories),
+                'classified_posts': classification_result,
             }
             
         except Exception as e:
             logging.error(f"[ERROR] Track A DB 처리 실패: {str(e)}")
+            import traceback
+            logging.error(traceback.format_exc())
             return {'status': 'failed', 'reason': str(e)}
     
     def _sample_posts(self, channel_id: int, limit: int = 100) -> List[Dict]:
@@ -305,8 +317,8 @@ OUTPUT (JSON ONLY):
                     max_similarity = similarity
                     matched_category_id = cat_id
             
-            # 임계값 이상인 경우만 분류 (0.5 이상), 아니면 기타로
-            if max_similarity >= 0.5:
+            # 임계값 이상인 경우만 분류 (0.3 이상), 아니면 기타로
+            if max_similarity >= 0.3:
                 update_params.append((matched_category_id, post['post_id']))
             else:
                 update_params.append((etc_id, post['post_id']))
@@ -315,4 +327,50 @@ OUTPUT (JSON ONLY):
         if update_params:
             update_query = "UPDATE post SET category_id = %s WHERE post_id = %s"
             self.db.execute_batch_update(update_query, update_params)
-            logging.info(f"[SUCCESS] 채널 {channel_id} - {len(update_params)}개 게시글 분류 완료 (임베딩 기반, 임계값=0.4)")
+            logging.info(f"[SUCCESS] 채널 {channel_id} - {len(update_params)}개 게시글 분류 완료 (임베딩 기반, 임계값=0.3)")
+        
+        return len(update_params)
+    
+    def _validate_and_cleanup_categories(self, channel_id: int, categories: List[Dict], etc_id: int, total_post_count: int) -> List[Dict]:
+        """
+        카테고리 유효성 검증 및 정리
+        - 게시글이 없는 카테고리 삭제
+        - 5% 미만의 게시글을 가진 카테고리는 해당 게시글을 '기타'로 이동 후 삭제
+        """
+        valid_categories = []
+        min_post_threshold = max(1, int(total_post_count * 0.05))  # 최소 5% 또는 1개
+        
+        for cat in categories:
+            # 해당 카테고리의 게시글 수 조회
+            count_query = """
+                SELECT COUNT(*) as count
+                FROM post
+                WHERE category_id = %s
+            """
+            result = self.db.execute_query(count_query, (cat['id'],))
+            post_count = result[0]['count']
+            
+            if post_count == 0:
+                # 게시글이 0개인 카테고리 삭제
+                logging.warning(f"[CLEANUP] 카테고리 '{cat['name']}' (ID: {cat['id']}) 게시글 0개, 삭제")
+                delete_query = "DELETE FROM category WHERE category_id = %s"
+                self.db.execute_update(delete_query, (cat['id'],))
+                
+            elif post_count < min_post_threshold:
+                # 5% 미만인 카테고리는 게시글을 '기타'로 이동 후 삭제
+                logging.warning(f"[CLEANUP] 카테고리 '{cat['name']}' (ID: {cat['id']}) 게시글 {post_count}개 ({post_count/total_post_count*100:.1f}%), 기타로 이동 후 삭제")
+                
+                # 게시글을 '기타'로 이동
+                update_query = "UPDATE post SET category_id = %s WHERE category_id = %s"
+                self.db.execute_update(update_query, (etc_id, cat['id']))
+                
+                # 카테고리 삭제
+                delete_query = "DELETE FROM category WHERE category_id = %s"
+                self.db.execute_update(delete_query, (cat['id'],))
+                
+            else:
+                # 유효한 카테고리
+                logging.info(f"[VALID] 카테고리 '{cat['name']}' (ID: {cat['id']}) 게시글 {post_count}개 ({post_count/total_post_count*100:.1f}%)")
+                valid_categories.append(cat)
+        
+        return valid_categories

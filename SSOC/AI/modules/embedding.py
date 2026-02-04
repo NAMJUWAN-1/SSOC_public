@@ -25,7 +25,7 @@ API_URL = os.getenv("GMS_EMBEDDING_URL")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
 
 # 유사도 거리 임계값 (Cosine Distance)
-THRESHOLD_CLASSIFICATION = 0.5  # 카테고리 분류용
+THRESHOLD_CLASSIFICATION = 0.7  # 카테고리 분류용
 THRESHOLD_SEARCH = 0.7          # 검색용
 
 
