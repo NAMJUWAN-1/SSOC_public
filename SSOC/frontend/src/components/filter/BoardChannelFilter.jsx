@@ -86,13 +86,13 @@ export default function BoardChannelFilter({
       {selectedBoard && (
         <div className="mt-4 animate-in fade-in duration-300 flex items-center gap-4">
           <h4 className="text-sm font-bold text-slate-800 shrink-0 border-r-2 border-slate-200 mr-2 w-24 text-center">카테고리</h4>
-          {!canShowCategory ? (
-            <div className="text-sm text-slate-400 py-1.5">카테고리 없음</div>
-          ) : categories.length === 0 ? (
-            <div className="text-sm text-slate-400 py-1.5">카테고리 없음</div>
-          ) : (
-            <div className="flex flex-wrap gap-2 flex-1">
-              {categories.map((c) => (
+          <div className="flex flex-wrap gap-2 flex-1 min-h-[32px] items-center">
+            {!canShowCategory || categories.length === 0 ? (
+              <span className="px-4 py-1.5 text-xs font-bold text-slate-300 border border-transparent select-none cursor-default">
+                카테고리 없음
+              </span>
+            ) : (
+              categories.map((c) => (
                 <button
                   key={c.category_id}
                   onClick={() => onSelectCategory?.(c.category_id)}
@@ -105,9 +105,9 @@ export default function BoardChannelFilter({
                 >
                   <span>{c.category_name}</span>
                 </button>
-              ))}
-            </div>
-          )}
+              ))
+            )}
+          </div>
         </div>
       )}
 
