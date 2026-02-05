@@ -34,7 +34,7 @@ function splitDateTime(isoStr) {
 function CustomTimePicker({ value, onChange, color }) {
   const [isOpen, setIsOpen] = useState(false);
   const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
-  const minutes = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, "0"));
+  const minutes = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0"));
 
   const [h, m] = (value || "00:00").split(":");
 
@@ -95,16 +95,19 @@ function CustomTimePicker({ value, onChange, color }) {
 function CustomDatePicker({ value, onChange, color }) {
   const [isOpen, setIsOpen] = useState(false);
   const [viewDate, setViewDate] = useState(value ? new Date(value) : new Date());
+  const [direction, setDirection] = useState(null); // 'prev' or 'next'
 
   const daysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
   const firstDayOfMonth = (year, month) => new Date(year, month, 1).getDay();
 
   const handlePrevMonth = (e) => {
     e.stopPropagation();
+    setDirection('prev');
     setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1));
   };
   const handleNextMonth = (e) => {
     e.stopPropagation();
+    setDirection('next');
     setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1));
   };
 
@@ -159,10 +162,31 @@ function CustomDatePicker({ value, onChange, color }) {
               ))}
             </div>
 
-            <div className="grid grid-cols-7 gap-1">
-              {Array.from({ length: firstDayOfMonth(currentYear, currentMonth) }).map((_, i) => (
-                <div key={`empty-${i}`} />
-              ))}
+            <div
+              key={`${currentYear}-${currentMonth}`}
+              className={`grid grid-cols-7 gap-1 ${direction === 'next' ? 'animate-slide-in-right' :
+                  direction === 'prev' ? 'animate-slide-in-left' : ''
+                }`}
+            >
+              {/* Ghost Days (Previous Month) */}
+              {Array.from({ length: firstDayOfMonth(currentYear, currentMonth) }).map((_, i) => {
+                const prevMonthDate = new Date(currentYear, currentMonth, 0);
+                const day = prevMonthDate.getDate() - firstDayOfMonth(currentYear, currentMonth) + i + 1;
+                return (
+                  <button
+                    key={`prev-${day}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setViewDate(new Date(currentYear, currentMonth - 1, 1));
+                    }}
+                    className="aspect-square rounded-xl text-xs font-bold text-slate-300 hover:bg-slate-50 transition-all flex items-center justify-center"
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+
+              {/* Current Month Days */}
               {Array.from({ length: daysInMonth(currentYear, currentMonth) }).map((_, i) => {
                 const day = i + 1;
                 const d = new Date(currentYear, currentMonth, day);
@@ -190,6 +214,25 @@ function CustomDatePicker({ value, onChange, color }) {
                     {isToday && !isSelected && (
                       <div className="absolute bottom-1 w-1 h-1 bg-[#FFBC1F] rounded-full" />
                     )}
+                  </button>
+                );
+              })}
+
+              {/* Ghost Days (Next Month) */}
+              {Array.from({
+                length: 42 - (firstDayOfMonth(currentYear, currentMonth) + daysInMonth(currentYear, currentMonth))
+              }).map((_, i) => {
+                const day = i + 1;
+                return (
+                  <button
+                    key={`next-${day}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setViewDate(new Date(currentYear, currentMonth + 1, 1));
+                    }}
+                    className="aspect-square rounded-xl text-xs font-bold text-slate-300 hover:bg-slate-50 transition-all flex items-center justify-center"
+                  >
+                    {day}
                   </button>
                 );
               })}
@@ -245,14 +288,14 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
   const [isAiApplied, setIsAiApplied] = useState(false);
   const [originalValues, setOriginalValues] = useState(null);
 
+  const TITLE_LIMIT = 50;
+  const CONTENT_LIMIT = 2000;
+
+  const titleError = title.length > TITLE_LIMIT;
+  const contentError = content.length > CONTENT_LIMIT;
+
   useEffect(() => {
-    const roundMin = (t) => {
-      const [h, m] = t.split(":");
-      const roundedM = Math.round(parseInt(m, 10) / 5) * 5;
-      return `${h}:${String(roundedM === 60 ? 55 : roundedM).padStart(2, "0")}`;
-    };
-    if (startTime) setStartTime(roundMin(startTime));
-    if (endTime) setEndTime(roundMin(endTime));
+    // 1분 단위로 변경되면서 기존 5분 단위 반올림 로직 제거
   }, []);
 
   const toggleAi = () => {
@@ -300,6 +343,7 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
     const finalColor = color || "#8E8E93";
 
     if (!finalTitle.trim()) return actions.openConfirm("event_title_required");
+    if (titleError || contentError) return;
 
     if (!startDate) return actions.openConfirm("event_start_date_required");
     if (!endDate) return actions.openConfirm("event_end_date_required");
@@ -421,9 +465,14 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
+            maxLength={TITLE_LIMIT}
             placeholder={isFromPost ? (aiTitle || "일정 제목을 입력하세요") : "일정 제목을 입력하세요"}
-            className="w-full px-0 py-3 bg-transparent border-b-2 border-slate-100 text-xl font-bold focus:outline-none focus:border-[#1E325C] placeholder:text-slate-300 transition-colors"
+            className={`w-full px-0 py-3 bg-transparent border-b-2 text-xl font-bold focus:outline-none placeholder:text-slate-300 transition-colors ${titleError ? "border-red-500" : "border-slate-100 focus:border-[#1E325C]"
+              }`}
           />
+          {titleError && (
+            <p className="text-[10px] text-red-500 pl-1 font-bold">글자수 제한은 {TITLE_LIMIT}자입니다 ({title.length}/{TITLE_LIMIT})</p>
+          )}
           {isFromPost && !title && (
             <p className="text-[10px] text-slate-400 pl-1">AI 추천: {aiTitle}</p>
           )}
@@ -440,9 +489,14 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
           <textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
+            maxLength={CONTENT_LIMIT}
             placeholder="상세 내용을 입력하세요"
-            className="w-full pt-2 pb-5 px-5 bg-[#F8F9FC] border border-transparent rounded-2xl text-slate-600 font-medium focus:outline-none focus:bg-white focus:border-[#1E325C] focus:ring-1 focus:ring-[#1E325C] transition-all resize-none h-32 custom-scrollbar"
+            className={`w-full pt-2 pb-5 px-5 bg-[#F8F9FC] border rounded-2xl text-slate-600 font-medium focus:outline-none focus:bg-white focus:ring-1 transition-all resize-none h-32 custom-scrollbar ${contentError ? "border-red-500 focus:border-red-500 focus:ring-red-500" : "border-transparent focus:border-[#1E325C] focus:ring-[#1E325C]"
+              }`}
           />
+          {contentError && (
+            <p className="text-[10px] text-red-500 pl-1 font-bold">글자수 제한은 {CONTENT_LIMIT}자입니다 ({content.length}/{CONTENT_LIMIT})</p>
+          )}
         </div>
 
         {/* Color Selection */}
@@ -508,8 +562,11 @@ export default function CalendarEventModal({ mode, payload, onClose }) {
         <div className="flex justify-end gap-3 pt-4 border-t border-slate-50">
           <button
             onClick={submit}
-            disabled={saving}
-            className="px-8 py-3 bg-[#1E325C] text-white rounded-xl font-bold hover:bg-[#2a457a] shadow-lg shadow-blue-900/10 transition-all flex items-center justify-center gap-2"
+            disabled={saving || titleError || contentError}
+            className={`px-8 py-3 rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 ${saving || titleError || contentError
+              ? "bg-slate-300 text-slate-100 cursor-not-allowed"
+              : "bg-[#1E325C] text-white hover:bg-[#2a457a] shadow-blue-900/10"
+              }`}
           >
             {saving ? "저장 중..." : (isEdit ? "수정 완료" : "일정 등록하기")}
           </button>

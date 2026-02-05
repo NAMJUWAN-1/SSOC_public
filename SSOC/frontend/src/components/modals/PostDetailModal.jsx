@@ -148,7 +148,7 @@ export default function PostDetailModal({
               상세 내용
             </div>
             {/* Height restricted to 300px for scrolling */}
-            <div className="bg-[#F8F9FC] pt-2 pb-5 px-5 rounded-2xl text-slate-600 font-medium min-h-[100px] max-h-[320px] overflow-y-auto border border-slate-100 shadow-sm custom-scrollbar">
+            <div className="bg-[#F8F9FC] pt-2 pb-5 px-5 rounded-2xl text-slate-600 font-medium min-h-[100px] max-h-[305px] overflow-y-auto border border-slate-100 shadow-sm custom-scrollbar">
               {content ? (
                 <MarkdownRenderer content={content} />
               ) : (

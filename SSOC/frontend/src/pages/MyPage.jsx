@@ -62,7 +62,8 @@ export default function MyPage() {
     return map;
   }, [state.auth.user]);
 
-  const [q, setQ] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [committedQuery, setCommittedQuery] = useState("");
   const [page, setPage] = useState(1);
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedBoard, setSelectedBoard] = useState(null);
@@ -74,7 +75,7 @@ export default function MyPage() {
 
   // Search effect
   useEffect(() => {
-    if (!q.trim()) {
+    if (!committedQuery.trim()) {
       setSearchResults(null);
       setIsSearching(false);
       return;
@@ -84,7 +85,7 @@ export default function MyPage() {
       setIsSearching(true);
       try {
         const params = new URLSearchParams();
-        params.set("keyword", q.trim());
+        params.set("keyword", committedQuery.trim());
         const res = await fetchWithAuth(apiUrl(`/api/posts/?${params.toString()}`), { method: "GET" });
         if (res.ok) {
           const data = await res.json();
@@ -98,9 +99,8 @@ export default function MyPage() {
       }
     };
 
-    const timer = setTimeout(run, 300);
-    return () => clearTimeout(timer);
-  }, [q]);
+    run();
+  }, [committedQuery, state.refreshTrigger]);
 
   const [nowTick, setNowTick] = useState(Date.now());
   useEffect(() => {
@@ -113,6 +113,8 @@ export default function MyPage() {
   const [editAvatar, setEditAvatar] = useState("");
   const [isShaking, setIsShaking] = useState(false);
   const nicknameInputRef = React.useRef(null);
+  const archiveSectionRef = React.useRef(null);
+  const isFirstRun = React.useRef(true);
 
   const handleStartEdit = () => {
     setEditNickname(state.auth.user.nickname || "");
@@ -147,42 +149,29 @@ export default function MyPage() {
     }
   };
 
+  useEffect(() => {
+    // Reload archives when refresh triggered
+    if (state.auth.user?.user_id) {
+      actions.loadMyArchives(state.auth.user.user_id);
+    }
+  }, [state.refreshTrigger]);
+
   const myArchivedPosts = useMemo(() => {
     return state.archivedPosts || [];
   }, [state.archivedPosts]);
 
   const filtered = useMemo(() => {
     let sourceList = myArchivedPosts;
-    const trimQ = q.trim().toLowerCase();
+    const trimQ = committedQuery.trim().toLowerCase();
 
     if (trimQ) {
-      const localMatches = myArchivedPosts.filter(p =>
-        (p.ai_title?.toLowerCase() ?? "").includes(trimQ) ||
-        (p.content?.toLowerCase() ?? "").includes(trimQ) ||
-        (p.display_content?.toLowerCase() ?? "").includes(trimQ)
-      );
-
-      let vectorMatches = [];
       if (searchResults) {
-        vectorMatches = searchResults.filter(p => state.archives.has(String(p.post_id ?? p.id)));
+        // 서버에서 온 AI 검색 결과 중, 내가 아카이빙한 것만 필터링
+        sourceList = searchResults.filter(p => p.is_archived);
+      } else {
+        // 검색 중이거나 결과가 아직 오지 않았을 때는 빈 리스트
+        sourceList = [];
       }
-
-      const mergedMap = new Map();
-
-      localMatches.forEach(p => mergedMap.set(String(p.post_id ?? p.id), p));
-
-      vectorMatches.forEach(vp => {
-        const vid = String(vp.post_id ?? vp.id);
-        if (!mergedMap.has(vid)) {
-          mergedMap.set(vid, vp);
-        } else {
-          const existing = mergedMap.get(vid);
-          mergedMap.set(vid, { ...existing, ...vp });
-        }
-      });
-
-      sourceList = Array.from(mergedMap.values());
-
     }
 
     return sourceList.filter((p) => {
@@ -199,10 +188,26 @@ export default function MyPage() {
 
       return matchFilter;
     });
-  }, [myArchivedPosts, q, searchResults, selectedBoard, selectedChannels, state.archives, channelToBoardMap]);
+  }, [myArchivedPosts, committedQuery, searchResults, selectedBoard, selectedChannels, state.archives, channelToBoardMap]);
 
 
-  useEffect(() => setPage(1), [q, selectedBoard, selectedChannels]);
+  useEffect(() => setPage(1), [committedQuery, selectedBoard, selectedChannels]);
+
+  useEffect(() => {
+    if (isFirstRun.current) {
+      isFirstRun.current = false;
+      return;
+    }
+    if (archiveSectionRef.current) {
+      const headerOffset = 65;
+      const elementPosition = archiveSectionRef.current.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: "smooth"
+      });
+    }
+  }, [page]);
 
   const current = useMemo(() => {
     const s = (page - 1) * ITEMS_PER_PAGE;
@@ -210,7 +215,7 @@ export default function MyPage() {
   }, [filtered, page]);
 
   const myArchiveCount = state.archiveCount || myArchivedPosts.length;
-  const upcomingCount = useMemo(() => {
+  const todayArchiveCount = useMemo(() => {
     const today = new Date(nowTick);
     const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
     const endOfToday = startOfToday + 24 * 60 * 60 * 1000 - 1;
@@ -332,9 +337,9 @@ export default function MyPage() {
                     <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-600 mb-2">
                       <CalendarIcon size={20} />
                     </div>
-                    <p className="text-[10px] font-bold text-slate-400 mb-0.5">금일 아카이빙한 일정</p>
+                    <p className="text-[10px] font-bold text-slate-400 mb-0.5">금일 아카이빙한 공지</p>
                     <p className="text-2xl font-black text-slate-800">
-                      {upcomingCount} <span className="text-xs font-bold text-slate-400">개</span>
+                      {todayArchiveCount} <span className="text-xs font-bold text-slate-400">개</span>
                     </p>
                   </div>
 
@@ -456,7 +461,7 @@ export default function MyPage() {
 
 
       {/* Archived Notices Section (Unchanged) */}
-      <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100 relative overflow-hidden min-h-[600px]">
+      <div ref={archiveSectionRef} className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100 relative overflow-hidden min-h-[600px]">
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <h2 className="text-3xl font-black text-slate-900 tracking-tighter flex items-center">
@@ -468,15 +473,19 @@ export default function MyPage() {
             {/* Search Box */}
             <div className="flex-1 md:w-[280px]">
               <SearchWithHistory
-                value={q}
+                value={searchInput}
                 onChange={(v) => {
-                  setQ(v);
+                  setSearchInput(v);
                   if (!v) {
+                    setCommittedQuery("");
                     setSearchResults(null);
                     setIsSearching(false);
                   }
                 }}
-                onSearch={setQ}
+                onSearch={(t) => {
+                  setSearchInput(t);
+                  setCommittedQuery(t);
+                }}
                 placeholder="아카이빙된 공지 검색..."
                 historyMode="backend"
               />

@@ -6,9 +6,7 @@ import "./index.css";
 import { AppProvider } from "./state/AppProvider";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <AppProvider>
-      <RouterProvider router={router} />
-    </AppProvider>
-  </React.StrictMode>
+  <AppProvider>
+    <RouterProvider router={router} />
+  </AppProvider>
 );
