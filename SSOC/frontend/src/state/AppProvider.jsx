@@ -110,6 +110,8 @@ const initialState = {
   calendarEvents: [],
   calendars: [],
 
+  refreshTrigger: 0,
+
   modals: {
     postDetail: { open: false, payload: null, mode: "post" },
     calendarEvent: { open: false, payload: null, mode: "create" },
@@ -140,6 +142,9 @@ function reducer(state, action) {
         loading: !!action.loading,
         auth: { ...state.auth, status: action.loading ? "loading" : "ready" },
       };
+    }
+    case "APP/REFRESH": {
+      return { ...state, refreshTrigger: state.refreshTrigger + 1 };
     }
     case "AUTH/SET": {
       const user = action.user ?? state.user;
@@ -372,8 +377,12 @@ export function AppProvider({ children }) {
       try {
         let token = getAccessToken();
 
-        // If access token not present (e.g. page reload), use refresh cookie
+        // If access token not present (e.g. page reload), use refresh cookie (only if hinted)
         if (!token) {
+          const hasSession = localStorage.getItem("ssoc_has_session") === "true";
+          if (!hasSession) {
+            throw new Error("No session hint found, skipping refresh");
+          }
           token = await refreshAccessToken();
         }
 
@@ -445,6 +454,9 @@ export function AppProvider({ children }) {
       dispatch({ type: "AUTH/SET", isAuthenticated: true, user });
       dispatch({ type: "PROFILE/SET_COMPLETED", completed: !!user.profile_image_url });
 
+      // Save session hint
+      localStorage.setItem("ssoc_has_session", "true");
+
       // Immediate Archive Sync
       try {
         await loadMyArchives(id);
@@ -467,6 +479,7 @@ export function AppProvider({ children }) {
 
   const logout = async () => {
     refreshTimer.current?.clear();
+    localStorage.removeItem("ssoc_has_session");
     await logoutBackend();
     dispatch({ type: "APP/RESET" });
   };
@@ -483,6 +496,9 @@ export function AppProvider({ children }) {
 
   // ---- Domain actions (API-ready, with local fallback) ----
   const getCurrentUserId = () => state.auth?.user?.user_id ?? state.user?.user_id ?? getUserId();
+
+
+  const triggerRefresh = () => dispatch({ type: "APP/REFRESH" });
 
   const loadMyArchives = async (overrideUserId) => {
     const userId = overrideUserId ?? getCurrentUserId();
@@ -839,6 +855,7 @@ export function AppProvider({ children }) {
       openCalendarEventCreateManual,
       openCalendarEventEdit,
       closeCalendarEvent,
+      triggerRefresh,
 
       fetchCalendarEvents,
 

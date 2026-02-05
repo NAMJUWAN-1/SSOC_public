@@ -12,8 +12,8 @@ export default function CalendarPage() {
   useEffect(() => {
     const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString();
     const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59).toISOString();
-    actions.fetchCalendarEvents?.({ start, end });
-  }, [currentDate]);
+    actions.fetchCalendarEvents({ start, end });
+  }, [currentDate, state.refreshTrigger]);
 
   return (
     <div className="space-y-6">
@@ -46,6 +46,7 @@ export default function CalendarPage() {
 
           <button
             onClick={() => actions.openCalendarEventCreateManual()}
+            onMouseDown={(e) => e.stopPropagation()}
             className="flex items-center px-6 py-3 bg-[#1E325C] text-white rounded-xl text-sm font-black shadow-lg shadow-blue-900/10 hover:brightness-110 transition-all active:scale-95 group"
           >
             <Plus size={18} className="mr-2 stroke-[3]" /> 일정 등록

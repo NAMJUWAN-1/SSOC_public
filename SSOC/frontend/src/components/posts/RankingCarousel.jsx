@@ -1,6 +1,6 @@
-import React, { useRef } from "react";
+import React, { useRef, useLayoutEffect } from "react";
 import LoadingSpinner from "../common/LoadingSpinner";
-import { TrendingUp, ChevronLeft, ChevronRight, ArrowUpRight, Star, Flame } from "lucide-react";
+import { TrendingUp, ChevronLeft, ChevronRight, Star, Flame } from "lucide-react";
 import { cn } from "../../components/ui/utils";
 
 function snippet100(text) {
@@ -9,12 +9,25 @@ function snippet100(text) {
   return t.length > 100 ? t.slice(0, 100) + "..." : t;
 }
 
-export default function RankingCarousel({ posts = [], onOpen, loading = false }) {
+export default function RankingCarousel({ posts = [], onOpen, loading = false, isAnimating = false }) {
   const scrollRef = useRef(null);
+  const scrollPosRef = useRef(0);
+
+  // Capture scroll position before layout changes to prevent jumping
+  useLayoutEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollLeft = scrollPosRef.current;
+    }
+  }, [posts]);
+
+  // Handle manual scroll saving
+  const handleScroll = (e) => {
+    scrollPosRef.current = e.target.scrollLeft;
+  };
 
   if (loading) {
     return (
-      <section className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100 mb-8">
+      <section className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100 mb-8 overflow-hidden">
         <LoadingSpinner message="랭킹을 불러오는 중..." />
       </section>
     );
@@ -34,7 +47,10 @@ export default function RankingCarousel({ posts = [], onOpen, loading = false })
   };
 
   return (
-    <section className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100 mb-8">
+    <section
+      id="ranking-section"
+      className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100 mb-8 overflow-hidden"
+    >
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <h2 className="text-3xl font-black text-slate-900 tracking-tighter flex items-center gap-3">
@@ -60,23 +76,30 @@ export default function RankingCarousel({ posts = [], onOpen, loading = false })
       </div>
 
       {/* Carousel Container */}
-      <div className="bg-slate-50/50 rounded-[2rem] p-6">
+      <div className="bg-slate-50/50 rounded-[2rem] p-6 overflow-hidden">
         <div
           ref={scrollRef}
-          className="flex space-x-6 overflow-x-auto pb-4 pt-4 snap-x scrollbar-hide"
+          onScroll={handleScroll}
+          className={cn(
+            "flex space-x-6 overflow-x-auto pb-4 pt-4 scrollbar-hide",
+            !isAnimating && "snap-x"
+          )}
         >
           {posts.map((p, idx) => {
             const id = p.post_id ?? p.id;
             const headline = p.ai_title ?? p.title ?? "(제목 없음)";
             const content = p.display_content ?? p.displayContent ?? p.content ?? p.rawContent ?? "";
-            const archivingCount = p.views ? p.views * 12 : 120 + idx * 30;
-            const dateStr = p.created_at ? new Date(p.created_at).toLocaleDateString() : "2026. 1. 1.";
+            const archivingCount = p.scrap_count ?? 0;
 
             return (
               <div
                 key={id}
                 onClick={() => onOpen?.(p)}
-                className="flex-shrink-0 w-[320px] snap-start bg-white pt-6 px-6 pb-3 rounded-2xl shadow-md border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer relative mt-2 active:scale-95"
+                className={cn(
+                  "flex-shrink-0 w-[320px] bg-white pt-6 px-6 pb-3 rounded-2xl shadow-md border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer relative mt-2 active:scale-95",
+                  !isAnimating && "snap-start"
+                )}
+                style={{}}
               >
                 {/* Ranking Badge */}
                 <div className="absolute -top-4 left-6 w-10 h-10 rounded-full bg-[#FFBC1F] text-[#1E325C] flex items-center justify-center font-black text-lg shadow-md z-10">
@@ -98,9 +121,15 @@ export default function RankingCarousel({ posts = [], onOpen, loading = false })
                 )}
 
                 {/* Scrap Count Display */}
-                <div className="flex items-center gap-1 text-[#E7625F] font-black text-[11px] tracking-tight mt-3 ml-[-2px]">
+                <div
+                  key={archivingCount} // Trigger re-mount/animation on count change
+                  className={cn(
+                    "flex items-center gap-1 text-[#E7625F] font-black text-[11px] tracking-tight mt-3 ml-[-2px]",
+                    p._spark && "animate-pulse-highlight"
+                  )}
+                >
                   <Flame size={14} className="fill-current" />
-                  <span>{p.scrap_count ?? 0} SCRAPS</span>
+                  <span>{archivingCount} SCRAPS</span>
                 </div>
               </div>
             );

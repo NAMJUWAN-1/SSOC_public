@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+// import { flushSync } from "react-dom";
 import { Filter } from "lucide-react";
 import { useApp } from "../state/AppProvider";
 
@@ -35,6 +36,15 @@ export default function DashboardPage() {
 
   const queryRef = useRef(query);
   const categoryRef = useRef(selectedCategory);
+  const prevArchivesRef = useRef(new Set(state.archives));
+  const noticeSectionRef = useRef(null);
+  const isFirstRun = useRef(true);
+
+  // Track last processed refresh trigger to know when to force bypass cache
+  const lastRankingRefreshRef = useRef(state.refreshTrigger);
+  const lastScopeRefreshRef = useRef(state.refreshTrigger);
+
+
   useEffect(() => {
     queryRef.current = query;
   }, [query]);
@@ -42,17 +52,51 @@ export default function DashboardPage() {
     categoryRef.current = selectedCategory;
   }, [selectedCategory]);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setQuery(queryInput);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [queryInput]);
 
   const [scopePosts, setScopePosts] = useState(state.dashboardCache.scopePosts || []);
   const [posts, setPosts] = useState(state.dashboardCache.scopePosts || []);
   const [rankingPosts, setRankingPosts] = useState(state.dashboardCache.rankingPosts || []);
   const [loading, setLoading] = useState(false);
+  const [rankingLoading, setRankingLoading] = useState(false);
+
+  useEffect(() => {
+    const currentArchives = state.archives;
+    const prevArchives = prevArchivesRef.current;
+
+    const added = [...currentArchives].find(id => !prevArchives.has(id));
+    const removed = [...prevArchives].find(id => !currentArchives.has(id));
+
+    if (added || removed) {
+      const targetId = added || removed;
+      const isAdding = !!added;
+
+      const next = rankingPosts.map(p => {
+        const pid = String(p.post_id ?? p.id);
+        if (pid === targetId) {
+          const oldCount = Number(p.scrap_count ?? 0);
+          return {
+            ...p,
+            scrap_count: isAdding ? oldCount + 1 : Math.max(0, oldCount - 1),
+            _spark: true
+          };
+        }
+        return { ...p, _spark: false };
+      });
+
+      const sorted = [...next].sort((a, b) => {
+        const diff = Number(b.scrap_count ?? 0) - Number(a.scrap_count ?? 0);
+        if (diff !== 0) return diff;
+        const dateA = new Date(a.created_at ?? 0).getTime();
+        const dateB = new Date(b.created_at ?? 0).getTime();
+        return dateB - dateA;
+      });
+
+      setRankingPosts(sorted);
+      actions.setDashboardCache({ rankingPosts: sorted });
+    }
+
+    prevArchivesRef.current = new Set(currentArchives);
+  }, [state.archives, actions, rankingPosts]);
 
   const boards = useMemo(() => {
     const userChannels = state.auth.user?.channels || [];
@@ -114,7 +158,7 @@ export default function DashboardPage() {
     return allUserChannelIds;
   }, [selectedChannels, selectedBoard, boards, allUserChannelIds]);
 
-  const channelScopeKey = useMemo(() => channelScopeIds.join(","), [channelScopeIds]);
+  const channelScopeKey = channelScopeIds.join(",");
 
   useEffect(() => {
     setSelectedCategory(null);
@@ -129,37 +173,71 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let alive = true;
+    const fetchRanking = async () => {
+      const isForceRefresh = state.refreshTrigger !== lastRankingRefreshRef.current;
+      if (isForceRefresh) lastRankingRefreshRef.current = state.refreshTrigger;
+
+      const cache = state.dashboardCache;
+      // If forced refresh, ignore cache freshness
+      const isFresh = !isForceRefresh && cache.lastUpdated && (new Date() - new Date(cache.lastUpdated)) < 300000;
+
+      if (isFresh && cache.rankingPosts?.length > 0) {
+        setRankingPosts(cache.rankingPosts);
+        return;
+      }
+
+      setRankingLoading(true);
+      try {
+        const res = await fetchWithAuth(apiUrl("/api/archives/ranking/"), { method: "GET" });
+        if (!res.ok) throw new Error("ranking fetch failed");
+        const data = await res.json();
+        if (!alive) return;
+        const list = Array.isArray(data) ? data : [];
+        setRankingPosts(list);
+        actions.setDashboardCache({ rankingPosts: list });
+      } catch (e) {
+        console.error("[ranking fetch] error:", e);
+      } finally {
+        if (alive) setRankingLoading(false);
+      }
+    };
+
+    if (state.auth.isAuthenticated) {
+      fetchRanking();
+    }
+    return () => { alive = false; };
+  }, [state.auth.isAuthenticated, state.refreshTrigger]);
+
+  useEffect(() => {
+    let alive = true;
     const run = async () => {
       if (!state.auth.isAuthenticated) return;
+
+      // If active search or category is selected, we skip the background scope fetch
+      // to avoid double requests. The Search Effect will handle data loading.
+      if (query.trim() || selectedCategory) {
+        setScopePosts([]);
+        return;
+      }
+
       if (!allUserChannelIds || allUserChannelIds.length === 0) return;
 
       const allChannelsKey = allUserChannelIds.join(",");
       const isInitialAllScope = channelScopeKey === allChannelsKey;
 
-      const cache = state.dashboardCache;
-      const isFresh = cache.lastUpdated && (new Date() - new Date(cache.lastUpdated)) < 300000;
+      const isForceRefresh = state.refreshTrigger !== lastScopeRefreshRef.current;
+      if (isForceRefresh) lastScopeRefreshRef.current = state.refreshTrigger;
 
-      const fetchRanking = async () => {
-        if (isFresh && cache.rankingPosts?.length > 0) {
-          setRankingPosts(cache.rankingPosts);
-          return;
-        }
-        try {
-          const res = await fetchWithAuth(apiUrl("/api/archives/ranking/"), { method: "GET" });
-          if (!res.ok) throw new Error("ranking fetch failed");
-          const data = await res.json();
-          if (!alive) return;
-          const list = Array.isArray(data) ? data : [];
-          setRankingPosts(list);
-          actions.setDashboardCache({ rankingPosts: list });
-        } catch (e) {
-          if (!alive) return;
-          console.error("[ranking fetch] error:", e);
-        }
-      };
+      const cache = state.dashboardCache;
+      // If forced refresh, ignore cache freshness
+      const isFresh = !isForceRefresh && cache.lastUpdated && (new Date() - new Date(cache.lastUpdated)) < 300000;
 
       const fetchScope = async () => {
-        if (scopePosts.length === 0) setLoading(true);
+        // If query or category is active, active search effect handles loading.
+        // fetchScope is background work, so keep it silent.
+        const isBackground = !!queryRef.current || !!categoryRef.current;
+
+        if (!isBackground && scopePosts.length === 0) setLoading(true);
         try {
           const res = await fetchWithAuth(apiUrl(`/api/posts/?channel_id=${channelScopeKey}`), { method: "GET" });
           if (!res.ok) throw new Error("scope fetch failed");
@@ -167,24 +245,27 @@ export default function DashboardPage() {
           if (!alive) return;
           const list = Array.isArray(data) ? data : [];
           setScopePosts(list);
-          actions.setDashboardCache({ scopePosts: list });
+          if (isInitialAllScope) {
+            actions.setDashboardCache({ scopePosts: list });
+          }
         } catch (e) {
           if (!alive) return;
           console.error("[scope fetch] error:", e);
         } finally {
           if (!alive) return;
-          setLoading(false);
+          if (!isBackground) setLoading(false);
         }
       };
 
       if (isInitialAllScope) {
         const canUseScopeCache = isFresh && cache.scopePosts?.length > 0;
-        const canUseRankingCache = isFresh && cache.rankingPosts?.length > 0;
 
         if (canUseScopeCache) {
           setScopePosts(cache.scopePosts);
         } else {
-          setLoading(true);
+          // If query/category active, keep silent
+          const isBackground = !!queryRef.current || !!categoryRef.current;
+          if (!isBackground) setLoading(true);
           try {
             const res = await fetchWithAuth(apiUrl(`/api/posts/?channel_id=${allChannelsKey}`), { method: "GET" });
             if (!res.ok) throw new Error("combined fetch failed");
@@ -198,56 +279,52 @@ export default function DashboardPage() {
             console.error("[consolidated posts fetch] error:", e);
           } finally {
             if (!alive) return;
-            setLoading(false);
+            if (!isBackground) setLoading(false);
           }
-        }
-
-        if (canUseRankingCache) {
-          setRankingPosts(cache.rankingPosts);
-        } else {
-          fetchRanking();
         }
         return;
       }
 
       fetchScope();
-      fetchRanking();
     };
 
     run();
     return () => { alive = false; };
-  }, [state.auth.isAuthenticated, channelScopeKey, allUserChannelIds.join(",")]);
+  }, [state.auth.isAuthenticated, channelScopeKey, allUserChannelIds.join(","), state.refreshTrigger, query, selectedCategory]);
 
+  // 1. Sync Effect: Keep posts in sync with scopePosts when NOT searching
+  // This ensures that when we clear search/filters, we immediately show the background data.
+  useEffect(() => {
+    const hasActiveSearch = !!query.trim() || !!selectedCategory;
+    if (!hasActiveSearch) {
+      setPosts(scopePosts);
+    }
+  }, [scopePosts, query, selectedCategory]);
+
+  // 2. Search Effect: Fetch data ONLY when searching
+  // We removed 'scopePosts' from dependency to prevent double-fetch loop.
   useEffect(() => {
     let alive = true;
 
     const run = async () => {
       if (!state.auth.isAuthenticated) return;
 
-      const hasQuery = !!query.trim();
-      const hasCategory = !!selectedCategory;
-      if (!hasQuery && !hasCategory) {
-        setPosts(scopePosts);
-        return;
-      }
+      const hasActiveSearch = !!query.trim() || !!selectedCategory;
+      if (!hasActiveSearch) return; // Handled by Sync Effect
 
       setLoading(true);
       try {
         const params = new URLSearchParams();
         if (channelScopeIds.length > 0) params.set("channel_id", channelScopeIds.join(","));
         if (selectedCategory) params.set("category_id", String(selectedCategory));
-        if (hasQuery) params.set("keyword", query.trim());
+        if (query.trim()) params.set("keyword", query.trim());
 
         const res = await fetchWithAuth(apiUrl(`/api/posts/?${params.toString()}`), { method: "GET" });
         if (!res.ok) throw new Error(`posts fetch failed (${res.status})`);
         const data = await res.json();
 
         if (!alive) return;
-        let list = Array.isArray(data) ? data : [];
-        if (hasQuery) {
-          list = Array.isArray(data) ? data : [];
-        }
-        setPosts(list);
+        setPosts(Array.isArray(data) ? data : []);
       } catch (e) {
         if (!alive) return;
         setPosts([]);
@@ -262,7 +339,7 @@ export default function DashboardPage() {
     return () => {
       alive = false;
     };
-  }, [query, selectedCategory, scopePosts, channelScopeKey, state.auth.isAuthenticated]);
+  }, [query, selectedCategory, channelScopeKey, state.auth.isAuthenticated, state.refreshTrigger]);
 
   const categories = useMemo(() => {
     if ((selectedChannels?.length ?? 0) !== 1) return [];
@@ -314,7 +391,19 @@ export default function DashboardPage() {
   }, [query, selectedCategory]);
 
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (isFirstRun.current) {
+      isFirstRun.current = false;
+      return;
+    }
+    if (noticeSectionRef.current) {
+      const headerOffset = 65;
+      const elementPosition = noticeSectionRef.current.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: "smooth"
+      });
+    }
   }, [page]);
 
   const onSelectBoard = (boardId) => {
@@ -365,11 +454,11 @@ export default function DashboardPage() {
       <RankingCarousel
         posts={rankingPosts.slice(0, 5)}
         onOpen={onOpenPost}
-        loading={loading}
+        loading={rankingLoading}
       />
 
       {/* Main Notice Section */}
-      <section className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100">
+      <section ref={noticeSectionRef} className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <h2 className="text-3xl font-black text-slate-900 tracking-tighter flex items-center">
             <span className="w-1.5 h-6 bg-[#FFBC1F] rounded-full mr-3" />

@@ -46,6 +46,13 @@ export default function PostList({
             "";
           const postedAt = p.start_at ?? p.startAt ?? p.posted_at ?? p.postedAt ?? p.createdAt;
 
+          const isNew = (() => {
+            if (!postedAt) return false;
+            const now = new Date();
+            const postDate = new Date(postedAt);
+            return (now - postDate) < 1000 * 60 * 60; // 1 hour
+          })();
+
           const channelName = p.channel_name ?? p.channelName ?? null;
           const categoryName = p.category_name ?? p.categoryName ?? null;
 
@@ -75,8 +82,13 @@ export default function PostList({
                   )}
                 </div>
 
-                <h3 className="font-black text-slate-900 group-hover:text-[#1E325C] transition-colors leading-snug text-base">
+                <h3 className="font-black text-slate-900 group-hover:text-[#1E325C] transition-colors leading-snug text-base flex items-center gap-2">
                   {title}
+                  {isNew && (
+                    <span className="text-[#E7625F] font-black text-[11px] tracking-tight shrink-0">
+                      NEW
+                    </span>
+                  )}
                 </h3>
 
                 {content ? (
@@ -94,7 +106,7 @@ export default function PostList({
                 {showArchiveButton && onToggleArchive ? (
                   <button
                     className={[
-                      "p-2 rounded-xl transition-all",
+                      "relative z-20 p-2 rounded-xl transition-all",
                       isArchived ? "bg-yellow-50 scale-110" : "bg-slate-50 group-hover:bg-white",
                     ].join(" ")}
                     onClick={(e) => {
@@ -105,6 +117,7 @@ export default function PostList({
                         onToggleArchive(p);
                       }
                     }}
+                    onMouseDown={(e) => e.stopPropagation()}
                   >
                     <Star size={18} className={isArchived ? "text-yellow-400 fill-current" : "text-slate-200"} />
                   </button>

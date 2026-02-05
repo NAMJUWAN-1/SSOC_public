@@ -21,6 +21,19 @@ const SideNav = () => {
         return `/${s}`;
     };
 
+    const handleNavigation = (path) => {
+        // Compare paths. Note: location.pathname might or might not have trailing slash
+        // normalize to no trailing slash for comparison
+        const current = location.pathname.replace(/\/$/, "");
+        const target = path.replace(/\/$/, "");
+
+        if (current === target) {
+            actions.triggerRefresh();
+        } else {
+            navigate(path);
+        }
+    };
+
     const navItems = [
         { id: 'dashboard', icon: Home, label: '홈', subLabel: '공지사항', path: '/app' },
         { id: 'calendar', icon: Calendar, label: '캘린더', subLabel: '일정 관리', path: '/app/calendar' },
@@ -32,7 +45,7 @@ const SideNav = () => {
             {/* Logo Area */}
             <div
                 className="mb-10 cursor-pointer flex items-center justify-center whitespace-nowrap w-full overflow-hidden"
-                onClick={() => navigate('/app')}
+                onClick={() => handleNavigation('/app')}
             >
                 {/* Logo wrapper: auto width to sit tight with text */}
                 <div className="flex items-center justify-center shrink-0 z-10">
@@ -59,7 +72,7 @@ const SideNav = () => {
                     return (
                         <button
                             key={item.id}
-                            onClick={() => navigate(item.path)}
+                            onClick={() => handleNavigation(item.path)}
                             className={cn(
                                 "relative flex items-center justify-start transition-all duration-300 overflow-hidden group/item",
                                 "rounded-full group-hover:rounded-2xl",
@@ -125,7 +138,7 @@ const SideNav = () => {
                     <div className="w-[48px] h-[48px] flex items-center justify-center shrink-0">
                         <div
                             className="w-10 h-10 rounded-full overflow-hidden border border-white/10 cursor-pointer active:scale-95 transition-transform"
-                            onClick={() => navigate('/app/mypage')}
+                            onClick={() => handleNavigation('/app/mypage')}
                         >
                             {user.profile_image_url ? (
                                 <img

@@ -40,6 +40,9 @@ export async function fetchWithAuth(url, options = {}) {
   const res = await doFetch(token);
 
   if (res.status === 401) {
+    const hasSession = localStorage.getItem("ssoc_has_session") === "true";
+    if (!hasSession) return res;
+
     const newToken = await getFreshAccessToken();
     return doFetch(newToken);
   }

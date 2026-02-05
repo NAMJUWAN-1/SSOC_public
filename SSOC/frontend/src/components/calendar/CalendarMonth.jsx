@@ -36,7 +36,9 @@ export default function CalendarMonth({
 
   useEffect(() => {
     const onDown = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) {
+      // 캘린더 외부 클릭 시 닫기 (단, 모달은 제외)
+      const isModalClick = e.target.closest('[role="dialog"]') || e.target.closest('.fixed.inset-0');
+      if (ref.current && !ref.current.contains(e.target) && !isModalClick) {
         setExpandedWeek(null);
       }
     };
@@ -129,7 +131,11 @@ export default function CalendarMonth({
   };
 
   const toggleWeek = (idx) => {
-    setExpandedWeek(expandedWeek === idx ? null : idx);
+    if (expandedWeek === idx) {
+      setExpandedWeek(null);
+    } else {
+      setExpandedWeek(idx);
+    }
   };
 
   return (
@@ -162,7 +168,11 @@ export default function CalendarMonth({
       )}
 
       {/* 요일 헤더 */}
-      <div className="grid grid-cols-7 border-b border-slate-100">
+      <div
+        className="grid border-b border-slate-100 bg-white"
+        style={{ gridTemplateColumns: '12px repeat(7, 1fr) 12px' }}
+      >
+        <div /> {/* Left Spacer */}
         {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((d, i) => (
           <div
             key={d}
@@ -176,6 +186,7 @@ export default function CalendarMonth({
             {d}
           </div>
         ))}
+        <div /> {/* Right Spacer */}
       </div>
 
       {/* 캘린더 바디 */}
@@ -187,9 +198,11 @@ export default function CalendarMonth({
           return (
             <div
               key={wi}
-              className={`grid grid-cols-7 border-b border-slate-100 transition-all duration-500 apple-bezier relative ${isExpanded ? "h-[20rem] bg-slate-50/50 shadow-inner overflow-y-auto" : "h-32 overflow-hidden"
+              className={`grid border-b border-slate-100 transition-all duration-500 apple-bezier relative ${isExpanded ? "h-[20rem] bg-slate-50/50 shadow-inner overflow-y-auto overflow-x-hidden custom-scrollbar" : "h-32 overflow-hidden"
                 }`}
+              style={{ gridTemplateColumns: '12px repeat(7, 1fr) 12px' }}
             >
+              <div /> {/* Left Spacer */}
               {week.map((date, di) => {
                 const today = date && isSameDay(date, new Date());
 
@@ -221,7 +234,7 @@ export default function CalendarMonth({
                   <div
                     key={di}
                     onClick={() => date && toggleWeek(wi)}
-                    className={`border-r border-slate-50 last:border-r-0 relative group transition-all ${date
+                    className={`min-w-0 border-r border-slate-50 last:border-r-0 relative group transition-all ${date
                       ? "hover:bg-slate-50/50 cursor-pointer"
                       : "bg-slate-50/10"
                       }`}
@@ -229,18 +242,15 @@ export default function CalendarMonth({
                     {date && (
                       <>
                         <div
-                          className={`flex items-center justify-center text-sm transition-all duration-300 z-10 ${today
+                          className={`flex items-center justify-center text-sm transition-all duration-300 z-20 absolute top-3 right-3 w-7 h-7 rounded-full ${today
                             ? "bg-[#FFBC1F] text-[#1E325C] font-black shadow-sm scale-110"
-                            : `font-medium ${di === 0 ? "text-[#FF3B30]" : di === 6 ? "text-[#007AFF]" : "text-slate-500"}`
-                            } ${isExpanded
-                              ? "sticky top-0 right-3 ml-auto mr-3 mt-3 w-7 h-7 rounded-full bg-slate-50/90 backdrop-blur-sm"
-                              : "absolute top-3 right-3 w-7 h-7 rounded-full"
+                            : `font-medium ${di === 0 ? "text-[#FF3B30]" : di === 6 ? "text-[#007AFF]" : "text-slate-500"} ${isExpanded ? "bg-slate-50/70 backdrop-blur-sm shadow-sm" : ""}`
                             }`}
                         >
                           {date.getDate()}
                         </div>
 
-                        <div className={`${isExpanded ? "mt-1" : "mt-11"} space-y-1`}>
+                        <div className="mt-11 space-y-1 min-w-0 overflow-hidden">
                           {!isExpanded &&
                             lanes.slice(0, MAX_VISIBLE_LANES).map((lane, li) => {
                               const ev = lane.find((e) => {
@@ -264,7 +274,7 @@ export default function CalendarMonth({
                               });
 
                               let chip =
-                                "h-6 text-[10px] font-black flex items-center px-2 truncate relative";
+                                "h-6 text-[10px] font-black flex items-center px-2 relative min-w-0";
 
                               if (pos === "start")
                                 chip += " rounded-l-md ml-2 mr-[-1px]";
@@ -277,10 +287,14 @@ export default function CalendarMonth({
                               return (
                                 <div
                                   key={li}
-                                  className={`${chip} border border-transparent`}
+                                  className={`${chip} border border-transparent overflow-hidden`}
                                   style={chipStyle}
                                 >
-                                  {showTitle ? ev.title : "\u00A0"}
+                                  {showTitle ? (
+                                    <span className="truncate flex-1">{ev.title}</span>
+                                  ) : (
+                                    "\u00A0"
+                                  )}
                                 </div>
                               );
                             })}
@@ -311,7 +325,7 @@ export default function CalendarMonth({
                               const isHovered = hoveredEventId === ev.id;
 
                               let chip =
-                                "h-6 text-[10px] font-black flex items-center px-2 truncate transition-all duration-200 cursor-pointer relative";
+                                "h-6 text-[10px] font-black flex items-center px-2 relative min-w-0 transition-all duration-200 cursor-pointer";
 
                               if (isHovered) {
                                 chip += " scale-y-[1.1] shadow-xl brightness-105 z-20";
@@ -326,18 +340,33 @@ export default function CalendarMonth({
                               };
 
                               if (isHovered) {
-                                if (pos === "start") chipStyle.clipPath = "inset(-100px -5px -100px -100px)";
-                                else if (pos === "middle") chipStyle.clipPath = "inset(-100px -5px -100px -5px)";
-                                else if (pos === "end") chipStyle.clipPath = "inset(-100px -100px -100px -5px)";
+                                let leftClip = "-100px";
+                                let rightClip = "-100px";
+
+                                // 토요일(di=6)에서 오른쪽으로 튀어나가지 않게, 일요일(di=0)에서 왼쪽으로 튀어나가지 않게 조정
+                                if (pos === "start" || pos === "middle") {
+                                  rightClip = di === 6 ? "0px" : "-5px";
+                                }
+                                if (pos === "end" || pos === "middle") {
+                                  leftClip = di === 0 ? "0px" : "-5px";
+                                }
+
+                                chipStyle.clipPath = `inset(-100px ${rightClip} -100px ${leftClip})`;
                               }
 
-                              if (pos === "start")
-                                chip += ` rounded-l-md ml-2 ${isHovered ? "mr-[-5px]" : "mr-[-1px]"}`;
-                              else if (pos === "end")
-                                chip += ` rounded-r-md ${isHovered ? "ml-[-5px]" : "ml-[-1px]"} mr-2`;
-                              else if (pos === "middle")
-                                chip += ` rounded-none ${isHovered ? "mx-[-5px]" : "mx-[-1px]"}`;
-                              else chip += " rounded-md mx-2";
+                              if (pos === "start") {
+                                const marginRight = (isHovered && di !== 6) ? "mr-[-5px]" : (di === 6 ? "mr-0" : "mr-[-1px]");
+                                chip += ` rounded-l-md ml-2 ${marginRight}`;
+                              } else if (pos === "end") {
+                                const marginLeft = (isHovered && di !== 0) ? "ml-[-5px]" : (di === 0 ? "ml-0" : "ml-[-1px]");
+                                chip += ` rounded-r-md ${marginLeft} mr-2`;
+                              } else if (pos === "middle") {
+                                const marginLeft = (isHovered && di !== 0) ? "ml-[-5px]" : (di === 0 ? "ml-0" : "ml-[-1px]");
+                                const marginRight = (isHovered && di !== 6) ? "mr-[-5px]" : (di === 6 ? "mr-0" : "mr-[-1px]");
+                                chip += ` rounded-none ${marginLeft} ${marginRight}`;
+                              } else {
+                                chip += " rounded-md mx-2";
+                              }
 
                               return (
                                 <div
@@ -351,7 +380,11 @@ export default function CalendarMonth({
                                     onOpenEvent(ev);
                                   }}
                                 >
-                                  {showTitle ? ev.title : "\u00A0"}
+                                  {showTitle ? (
+                                    <span className="truncate flex-1">{ev.title}</span>
+                                  ) : (
+                                    "\u00A0"
+                                  )}
                                 </div>
                               );
                             })}
@@ -361,6 +394,7 @@ export default function CalendarMonth({
                   </div>
                 );
               })}
+              <div /> {/* Right Spacer */}
             </div>
           );
         })}

@@ -99,7 +99,7 @@ export default function ArchiveGrid({
                 {onToggleArchive ? (
                   <button
                     className={[
-                      "p-2 rounded-xl transition-all",
+                      "relative z-20 p-2 rounded-xl transition-all",
                       isArchived ? "bg-yellow-50 scale-110" : "bg-slate-50 group-hover:bg-white",
                     ].join(" ")}
                     onClick={(e) => {
@@ -110,6 +110,7 @@ export default function ArchiveGrid({
                         onToggleArchive(p);
                       }
                     }}
+                    onMouseDown={(e) => e.stopPropagation()}
                   >
                     <Star size={18} className={isArchived ? "text-yellow-400 fill-current" : "text-slate-200"} />
                   </button>
