@@ -16,8 +16,8 @@ class CalendarEvent(models.Model):
         db_column="user_id"
     )
     
-    custom_title = models.CharField(max_length=200, db_column="custom_title")
-    custom_content = models.TextField(null=True, blank=True, db_column="custom_content")
+    custom_title = models.CharField(max_length=50, db_column="custom_title")
+    custom_content = models.CharField(max_length=2000, null=True, blank=True, db_column="custom_content")
     
     custom_start_at = models.DateTimeField(db_column="custom_start_at")
     custom_end_at = models.DateTimeField(db_column="custom_end_at")
