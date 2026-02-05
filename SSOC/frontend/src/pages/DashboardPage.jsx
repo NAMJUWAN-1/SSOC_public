@@ -213,9 +213,9 @@ export default function DashboardPage() {
     const run = async () => {
       if (!state.auth.isAuthenticated) return;
 
-      // If active search or category is selected, we skip the background scope fetch
+      // If active search is selected, we skip the background scope fetch
       // to avoid double requests. The Search Effect will handle data loading.
-      if (query.trim() || selectedCategory) {
+      if (query.trim()) {
         setScopePosts([]);
         return;
       }
@@ -233,9 +233,9 @@ export default function DashboardPage() {
       const isFresh = !isForceRefresh && cache.lastUpdated && (new Date() - new Date(cache.lastUpdated)) < 300000;
 
       const fetchScope = async () => {
-        // If query or category is active, active search effect handles loading.
+        // If query is active, active search effect handles loading.
         // fetchScope is background work, so keep it silent.
-        const isBackground = !!queryRef.current || !!categoryRef.current;
+        const isBackground = !!queryRef.current;
 
         if (!isBackground && scopePosts.length === 0) setLoading(true);
         try {
@@ -263,8 +263,8 @@ export default function DashboardPage() {
         if (canUseScopeCache) {
           setScopePosts(cache.scopePosts);
         } else {
-          // If query/category active, keep silent
-          const isBackground = !!queryRef.current || !!categoryRef.current;
+          // If query active, keep silent
+          const isBackground = !!queryRef.current;
           if (!isBackground) setLoading(true);
           try {
             const res = await fetchWithAuth(apiUrl(`/api/posts/?channel_id=${allChannelsKey}`), { method: "GET" });
@@ -290,33 +290,35 @@ export default function DashboardPage() {
 
     run();
     return () => { alive = false; };
-  }, [state.auth.isAuthenticated, channelScopeKey, allUserChannelIds.join(","), state.refreshTrigger, query, selectedCategory]);
+  }, [state.auth.isAuthenticated, channelScopeKey, allUserChannelIds.join(","), state.refreshTrigger, query]);
 
   // 1. Sync Effect: Keep posts in sync with scopePosts when NOT searching
-  // This ensures that when we clear search/filters, we immediately show the background data.
+  // This ensures that when we clear search, we immediately show the background data.
+  // We allow category selection to filter scopePosts client-side.
   useEffect(() => {
-    const hasActiveSearch = !!query.trim() || !!selectedCategory;
+    const hasActiveSearch = !!query.trim();
     if (!hasActiveSearch) {
       setPosts(scopePosts);
     }
-  }, [scopePosts, query, selectedCategory]);
+  }, [scopePosts, query]);
 
   // 2. Search Effect: Fetch data ONLY when searching
   // We removed 'scopePosts' from dependency to prevent double-fetch loop.
+  // MODIFIED: Fetch ALL results for keyword, ignore filters (filtering is done client-side)
   useEffect(() => {
     let alive = true;
 
     const run = async () => {
       if (!state.auth.isAuthenticated) return;
 
-      const hasActiveSearch = !!query.trim() || !!selectedCategory;
+      const hasActiveSearch = !!query.trim();
       if (!hasActiveSearch) return; // Handled by Sync Effect
 
       setLoading(true);
       try {
         const params = new URLSearchParams();
-        if (channelScopeIds.length > 0) params.set("channel_id", channelScopeIds.join(","));
-        if (selectedCategory) params.set("category_id", String(selectedCategory));
+        // REMOVED: channel_id and category_id params. We want GLOBAL results for the keyword.
+        // Client-side 'filtered' memo will handle the narrowing down.
         if (query.trim()) params.set("keyword", query.trim());
 
         const res = await fetchWithAuth(apiUrl(`/api/posts/?${params.toString()}`), { method: "GET" });
@@ -339,7 +341,7 @@ export default function DashboardPage() {
     return () => {
       alive = false;
     };
-  }, [query, selectedCategory, channelScopeKey, state.auth.isAuthenticated, state.refreshTrigger]);
+  }, [query, state.auth.isAuthenticated, state.refreshTrigger]);
 
   const categories = useMemo(() => {
     if ((selectedChannels?.length ?? 0) !== 1) return [];

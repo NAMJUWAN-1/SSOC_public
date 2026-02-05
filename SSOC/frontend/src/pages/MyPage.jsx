@@ -48,7 +48,26 @@ export default function MyPage() {
         entry.channels.push({ channel_id: ch.channel_id, channel_name: ch.channel_name });
       }
     }
-    return Array.from(map.values());
+    const out = Array.from(map.values());
+    out.sort((a, b) => String(a.board_name).localeCompare(String(b.board_name), "ko"));
+
+    const leadingNumber = (name) => {
+      const s = String(name ?? "");
+      const m = s.match(/^\s*#?\s*(\d+)\s*[\.)]/);
+      return m ? Number.parseInt(m[1], 10) : null;
+    };
+
+    for (const b of out) {
+      b.channels.sort((x, y) => {
+        const nx = leadingNumber(x.channel_name);
+        const ny = leadingNumber(y.channel_name);
+        if (nx != null && ny != null && nx !== ny) return nx - ny;
+        if (nx != null && ny == null) return -1;
+        if (nx == null && ny != null) return 1;
+        return String(x.channel_name).localeCompare(String(y.channel_name), "ko");
+      });
+    }
+    return out;
   }, [state.auth.user]);
 
   const channelToBoardMap = useMemo(() => {
@@ -68,6 +87,7 @@ export default function MyPage() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedBoard, setSelectedBoard] = useState(null);
   const [selectedChannels, setSelectedChannels] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState(null);
   const ITEMS_PER_PAGE = 9;
 
   const [searchResults, setSearchResults] = useState(null);
@@ -100,7 +120,32 @@ export default function MyPage() {
     };
 
     run();
+    run();
   }, [committedQuery, state.refreshTrigger]);
+
+  const categories = useMemo(() => {
+    if ((selectedChannels?.length ?? 0) !== 1) return [];
+
+    const targetId = selectedChannels[0];
+    const userChannels = state.auth.user?.channels || [];
+    const ch = userChannels.find((c) => c.channel_id === targetId);
+
+    if (!ch || !ch.categories) return [];
+
+    const out = [...ch.categories];
+    out.sort((a, b) => String(a.category_name).localeCompare(String(b.category_name), "ko"));
+    return out;
+  }, [selectedChannels, state.auth.user?.channels]);
+
+  useEffect(() => {
+    if ((selectedChannels?.length ?? 0) !== 1) {
+      setSelectedCategory(null);
+    }
+  }, [selectedChannels]);
+
+  useEffect(() => {
+    setSelectedCategory(null);
+  }, [selectedBoard]);
 
   const [nowTick, setNowTick] = useState(Date.now());
   useEffect(() => {
@@ -177,6 +222,7 @@ export default function MyPage() {
     return sourceList.filter((p) => {
       let pidBoard = p.board_id ?? p.boardId;
       const pidChannel = p.channel_id ?? p.channelId;
+      const pidCategory = p.category_id ?? p.categoryId;
 
       if (pidBoard === undefined || pidBoard === null) {
         pidBoard = channelToBoardMap.get(pidChannel);
@@ -186,12 +232,16 @@ export default function MyPage() {
       if (selectedChannels.length > 0) matchFilter = selectedChannels.includes(pidChannel);
       else if (selectedBoard) matchFilter = (pidBoard === selectedBoard);
 
+      if (matchFilter && selectedCategory) {
+        matchFilter = pidCategory === selectedCategory;
+      }
+
       return matchFilter;
     });
-  }, [myArchivedPosts, committedQuery, searchResults, selectedBoard, selectedChannels, state.archives, channelToBoardMap]);
+  }, [myArchivedPosts, committedQuery, searchResults, selectedBoard, selectedChannels, selectedCategory, state.archives, channelToBoardMap]);
 
 
-  useEffect(() => setPage(1), [committedQuery, selectedBoard, selectedChannels]);
+  useEffect(() => setPage(1), [committedQuery, selectedBoard, selectedChannels, selectedCategory]);
 
   useEffect(() => {
     if (isFirstRun.current) {
@@ -235,6 +285,10 @@ export default function MyPage() {
     }
     setSelectedBoard(boardId);
     setSelectedChannels([]);
+  };
+
+  const onSelectCategory = (categoryId) => {
+    setSelectedCategory((prev) => (prev === categoryId ? null : categoryId));
   };
 
   const onToggleChannel = (cid) => {
@@ -505,14 +559,18 @@ export default function MyPage() {
         <BoardChannelFilter
           open={filterOpen}
           boards={boards}
-          showCategory={false}
+          categories={categories}
+          showCategory={(selectedChannels?.length ?? 0) === 1}
           selectedBoard={selectedBoard}
           selectedChannels={selectedChannels}
+          selectedCategory={selectedCategory}
           onSelectBoard={onSelectBoard}
           onToggleChannel={onToggleChannel}
+          onSelectCategory={onSelectCategory}
           onReset={() => {
             setSelectedBoard(null);
             setSelectedChannels([]);
+            setSelectedCategory(null);
           }}
         />
 
