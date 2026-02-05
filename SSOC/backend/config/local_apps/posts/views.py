@@ -176,40 +176,90 @@ class PostAPIView(APIView):
                 )
 
         # 검색 및 정렬 로직
+        # keyword = request.GET.get("keyword", "").strip()
+        # is_vector_search = False
+
+        # '''
+        # # 기존의 키워드 검색 관련 코드 (확인 후 삭제 요망)
+        # if keyword:
+        #     # === 현재 구현: 텍스트 검색 (임시) ===
+        #     # 제목 또는 내용에서 검색어 포함 여부 확인
+        #     user_posts = user_posts.filter(
+        #         Q(ai_title__icontains=keyword) | Q(content__icontains=keyword)
+        #     )
+        # # 정렬 (기본: 최신순)
+        # ordering = request.GET.get("ordering", "-posted_at")
+        # # 다른 정렬 기준이 입력되면 해당 기준이 허용되는 옵션인지 확인
+        # if ordering in ["posted_at", "-posted_at", "ai_title", "-ai_title"]:
+        #     user_posts = user_posts.order_by(ordering)
+        # else:
+        #     user_posts = user_posts.order_by("-posted_at")
+        # '''
+        
+        # SIMILARITY_THRESHOLD = 0.7 # 유사도 임계값
+        # if keyword:
+        #     query_vector = self._get_embedding(keyword)
+        #     if query_vector:
+        #         vector_str = str(query_vector)
+        #         user_posts = user_posts.extra(
+        #             select={'distance': 'post.embedding_vector <=> %s'},
+        #             select_params=(str(query_vector),),
+        #             where=['post.embedding_vector <=> %s < %s'],
+        #             params=(vector_str, SIMILARITY_THRESHOLD),
+        #             order_by=['distance']
+        #         )
+        #         is_vector_search = True
+        #     else:
+        #         user_posts = user_posts.none()
+
+        # if not is_vector_search:
+        #     ordering = request.GET.get("ordering", "-posted_at")
+        #     if ordering in ["posted_at", "-posted_at", "ai_title", "-ai_title"]:
+        #         user_posts = user_posts.order_by(ordering)
+        #     else:
+        #         user_posts = user_posts.order_by("-posted_at")
+
+        # 검색 및 정렬 로직
         keyword = request.GET.get("keyword", "").strip()
         is_vector_search = False
 
-        '''
-        # 기존의 키워드 검색 관련 코드 (확인 후 삭제 요망)
-        if keyword:
-            # === 현재 구현: 텍스트 검색 (임시) ===
-            # 제목 또는 내용에서 검색어 포함 여부 확인
-            user_posts = user_posts.filter(
-                Q(ai_title__icontains=keyword) | Q(content__icontains=keyword)
-            )
-        # 정렬 (기본: 최신순)
-        ordering = request.GET.get("ordering", "-posted_at")
-        # 다른 정렬 기준이 입력되면 해당 기준이 허용되는 옵션인지 확인
-        if ordering in ["posted_at", "-posted_at", "ai_title", "-ai_title"]:
-            user_posts = user_posts.order_by(ordering)
-        else:
-            user_posts = user_posts.order_by("-posted_at")
-        '''
-        
-        SIMILARITY_THRESHOLD = 0.7 # 유사도 임계값
+        SIMILARITY_THRESHOLD = 0.6 # 유사도 임계값
         if keyword:
             query_vector = self._get_embedding(keyword)
+            print(f"키워드: {keyword}")
+            print(f"임베딩 벡터 생성 여부: {query_vector is not None}")
+            
             if query_vector:
                 vector_str = str(query_vector)
+                keyword_pattern = f'%{keyword}%'
+                
                 user_posts = user_posts.extra(
-                    select={'distance': 'post.embedding_vector <=> %s'},
-                    select_params=(str(query_vector),),
-                    where=['post.embedding_vector <=> %s < %s'],
-                    params=(vector_str, SIMILARITY_THRESHOLD),
-                    order_by=['distance']
+                    select={
+                        'distance': 'post.embedding_vector <=> %s',
+                        'keyword_match': '''
+                            CASE 
+                                WHEN ai_title ILIKE %s THEN 0
+                                WHEN content ILIKE %s THEN 1
+                                ELSE 2
+                            END
+                        '''
+                    },
+                    select_params=(vector_str, keyword_pattern, keyword_pattern),
+                    
+                    # WHERE 조건은 그대로 유지 (검색 범위는 동일)
+                    where=['(post.embedding_vector <=> %s < %s) OR (ai_title ILIKE %s) OR (content ILIKE %s)'],
+                    params=(vector_str, SIMILARITY_THRESHOLD, keyword_pattern, keyword_pattern),
+                    
+                    # 정렬 순서: 
+                    # 1순위: keyword_match (0:제목키워드 -> 1:내용키워드 -> 2:의미유사도)
+                    # 2순위: distance (같은 그룹 내에서는 의미가 더 가까운 순서대로)
+                    order_by=['keyword_match', 'distance']
                 )
                 is_vector_search = True
+                print(f"쿼리셋 개수: {user_posts.count()}")
+                print(f"SQL 쿼리: {user_posts.query}")
             else:
+                print("임베딩 벡터 생성 실패")
                 user_posts = user_posts.none()
 
         if not is_vector_search:
