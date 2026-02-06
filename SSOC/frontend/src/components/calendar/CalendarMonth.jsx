@@ -79,24 +79,21 @@ export default function CalendarMonth({
           return e >= weekStart && s <= weekEnd;
         })
         .sort((a, b) => {
-          const sa = new Date(a.startAt).getTime();
-          const sb = new Date(b.startAt).getTime();
-          const ea = new Date(a.endAt || a.startAt).getTime();
-          const eb = new Date(b.endAt || b.startAt).getTime();
+          // 일(Day) 단위로 정렬하기 위해 시간 정보 제거
+          const sa = startOfDay(a.startAt).getTime();
+          const sb = startOfDay(b.startAt).getTime();
+          const ea = startOfDay(a.endAt || a.startAt).getTime();
+          const eb = startOfDay(b.endAt || b.startAt).getTime();
 
           const durA = ea - sa;
           const durB = eb - sb;
 
-          // 1. 기간이 긴 일정을 우선순위로
+          // 1. 기간(일수)이 긴 일정을 우선순위로
           if (durA !== durB) return durB - durA;
 
-          // 2. 시작일이 빠른 순
-          if (sa !== sb) return sa - sb;
-
-          // 3. 종료일이 빠른 순
-          if (ea !== eb) return ea - eb;
-
-          return String(a.id).localeCompare(String(b.id));
+          // 2. 기간이 같다면 최신 등록순 (ID 내림차순)
+          // ID가 숫자라면 b.id - a.id, 문자열이라면 localeCompare 사용
+          return String(b.id).localeCompare(String(a.id));
         });
 
       const lanes = [];
