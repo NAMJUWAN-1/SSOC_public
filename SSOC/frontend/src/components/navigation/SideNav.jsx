@@ -22,22 +22,14 @@ const SideNav = () => {
     };
 
     const handleNavigation = (path) => {
-        // Compare paths. Note: location.pathname might or might not have trailing slash
-        // normalize to no trailing slash for comparison
-        const current = location.pathname.replace(/\/$/, "");
-        const target = path.replace(/\/$/, "");
-
-        if (current === target) {
-            actions.triggerRefresh();
-        } else {
-            navigate(path);
-        }
+        // Always force a full page reload as requested
+        window.location.href = path;
     };
 
     const navItems = [
         { id: 'dashboard', icon: Home, label: '홈', subLabel: '공지사항', path: '/app' },
         { id: 'calendar', icon: Calendar, label: '캘린더', subLabel: '일정 관리', path: '/app/calendar' },
-        { id: 'mypage', icon: User, label: '프로필', subLabel: '개인 설정', path: '/app/mypage' },
+        { id: 'mypage', icon: User, label: '마이페이지', subLabel: '개인 설정', path: '/app/mypage' },
     ];
 
     return (
